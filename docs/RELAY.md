@@ -91,12 +91,15 @@ The bot republishes the whole site, so the snapshot is just another static file 
 
 1. Download the prebuilt viewer once per run (or reuse a cached copy whose `dist-manifest.json` commit has not changed): `https://github.com/mascarock/grokbot-inbox/releases/latest/download/dist.tar.gz`. The bundle already contains `api/relay.js`, a build-less `vercel.json`, and a `package.json` with `"type": "module"`.
 2. Export, encrypt, and drop `inbox.enc` + `inbox.meta.json` into the same directory.
-3. Call the Vercel connector's `create_deployment` with `target: "production"`, the project name, every file inline, and `projectSettings: { framework: null, buildCommand: null, installCommand: null, outputDirectory: null }`. Vercel serves the static files from the root and builds `api/relay.js` as a Node function.
-4. Poll `get_deployment` until `READY`. The production alias does not change, so the owner's link keeps working; their open tab picks the new snapshot up within a minute.
+3. Once per project, `update_project` with `requestBody: { framework: null, buildCommand: "", installCommand: "", outputDirectory: null }`. Empty strings mean *no command*; `null` would mean *auto-detect*, and a project once set to Vite then runs `npm ci` and fails with `missing_lock_file`.
+4. `upload_file` for each file in the deploy set (base64 content, SHA-1, size; [bot/publish_files.mjs](../bot/publish_files.mjs) prints them and skips `.nojekyll` / `dist-manifest.json`), then `create_deployment` with `skipAutoDetectionConfirmation: "1"` top-level and `requestBody: { name, target: "production", files: [{ file, sha, size }, …], projectSettings: <same as step 3> }`. The connector cannot inline a dozen files in one call. Vercel serves the static files from the root and builds `api/relay.js` as a Node function.
+5. Poll `get_deployment` until `READY`. The production alias does not change, so the owner's link keeps working; their open tab picks the new snapshot up within a minute.
 
 **Why not Vercel Blob / Edge Config / KV?** Each needs a store created on the project and a read-write token wired into an environment variable, plus an authenticated write path for the bot. That is one or two extra secrets and manual dashboard steps, which this project avoids. A deployment per snapshot costs nothing on Hobby and needs only the connector.
 
-**Why not link the project to the GitHub repository?** A push to `main` would redeploy the viewer without `inbox.enc` and blank the inbox until the next publish. Keep the project unlinked; the bot refreshes the viewer files on every publish anyway.
+**Why not link the project to the GitHub repository?** A push to `main` would redeploy the viewer without `inbox.enc` and blank the inbox until the next publish. Keep the project unlinked; the bot refreshes the viewer files on every publish anyway. The connector cannot remove an existing Git link: create a fresh project, have the owner disconnect under *Settings → Git*, or as a stopgap set `commandForIgnoringBuildStep: "exit 0"` so Git-triggered builds are cancelled (bot/SKILL.md A3).
+
+**Webhook URL prefill is optional.** The routine panel shows the webhook URL and key only to the owner. The bot includes `relay.webhookUrl` only if the owner pasted the URL into chat; otherwise the owner enters both in the viewer's Settings.
 
 ### Limits and the debounce
 
