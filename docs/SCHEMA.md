@@ -15,6 +15,7 @@ The published contract is [`schema/inbox.schema.json`](../schema/inbox.schema.js
 | `threads` | yes | Array of threads. May be empty. |
 | `mode` | no | `full` (default) or `lite`. See [Lite exports](#lite-exports). |
 | `source` | no | Free-form object for exporter metadata (`via`, `readOnly`, `note`, …). |
+| `relay` | no | `{ webhookUrl?, keyHeader?, keyPrefix? }`: prefills the viewer's webhook settings so the owner only pastes the key. Never the key itself. See [RELAY.md](RELAY.md). |
 
 ## Thread
 

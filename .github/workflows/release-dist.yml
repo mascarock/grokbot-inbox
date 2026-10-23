@@ -41,6 +41,22 @@ jobs:
           VITE_BASE_PATH: /
         run: npm run build
 
+      - name: Add the relay function and a build-less vercel.json
+        # The bot deploys these files inline with no build step, so the
+        # bundle carries the /api/relay function itself and a vercel.json
+        # without framework or build settings. package.json only sets
+        # "type": "module" so api/relay.js runs as ESM.
+        run: |
+          mkdir -p dist/api
+          cp api/relay.js dist/api/relay.js
+          node -e '
+            const fs = require("fs");
+            const cfg = JSON.parse(fs.readFileSync("vercel.json", "utf8"));
+            for (const k of ["framework", "buildCommand", "outputDirectory", "installCommand", "devCommand"]) delete cfg[k];
+            fs.writeFileSync("dist/vercel.json", JSON.stringify(cfg, null, 2) + "\n");
+            fs.writeFileSync("dist/package.json", JSON.stringify({ name: "grokbot-inbox-site", private: true, type: "module" }, null, 2) + "\n");
+          '
+
       - name: Pack dist
         run: |
           tar -czf dist.tar.gz -C dist .

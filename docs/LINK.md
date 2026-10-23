@@ -1,6 +1,8 @@
-# Viewer links
+# Viewer links (`#data=`, the fallback)
 
-A viewer link carries a whole inbox export inside the URL fragment:
+> The live viewer uses a different link, `…/#k=<key>`, where the fragment holds only a decryption key and the mail is an encrypted snapshot on the owner's own deployment. That format is documented in [RELAY.md](RELAY.md). `#data=` links remain for bots that cannot publish and for one-off exports; when both fragments are present, `#k=` wins.
+
+A `#data=` link carries a whole inbox export inside the URL fragment:
 
 ```text
 https://grokbot-inbox-<handle>.vercel.app/#data=<payload>

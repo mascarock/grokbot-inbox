@@ -1,6 +1,6 @@
 # Bot commands: `/inbox-send v1` and `/inbox-refresh v1`
 
-The viewer is a static page. It cannot send mail and it never calls an API with mail data. What it can do is write down what the owner wants and hand that text to the owner, who pastes it into their Grok Bot chat. The bot parses the text, shows a draft card, and sends only after the owner confirms on that card.
+The viewer is a static page. It cannot send mail. What it can do is write down what the owner wants and hand it to the owner's bot: as a **JSON payload over the bot's webhook** when one is configured (see [RELAY.md](RELAY.md) §4 and [the JSON mirror below](#json-webhook-payloads)), or as this **text block** the owner pastes into their Grok Bot chat. Either way the bot parses it, shows a draft card, and sends only after the owner confirms on that card.
 
 Two commands exist. Both are plain text, one header per line, so they survive chat clients, clipboards, and the mobile share sheet.
 
@@ -133,7 +133,28 @@ The parser throws `CommandError` with a one-line, owner-readable reason: missing
 }
 ```
 
-`/inbox-refresh` alone (no version, no headers) is also accepted and means v1. The bot re-exports that mailbox and replies with a fresh viewer link (see `bot/SKILL.md`, Part B). The viewer puts this text on the clipboard when the owner presses the refresh button; it does not fetch anything itself.
+`/inbox-refresh` alone (no version, no headers) is also accepted and means v1. The bot re-exports that mailbox and publishes a fresh snapshot or replies with a fresh viewer link (see `bot/SKILL.md`, Parts D and E). The viewer puts this text on the clipboard when the owner presses the refresh button and no webhook is configured.
+
+## JSON webhook payloads
+
+With a webhook configured the viewer POSTs JSON instead (`src/lib/webhook.ts`, tests in `src/lib/webhook.test.ts`). Fields mirror the text headers one to one; `command` carries the equivalent text block so a bot can reuse its parser and the bot must stop if the two disagree.
+
+| Text header | JSON field | Notes |
+| --- | --- | --- |
+| first line | `type`: `inbox-send` \| `inbox-refresh` \| `inbox-action`, `v`: `1` | |
+| `from` | `from` | string |
+| `kind` | `kind` | `new` \| `reply` \| `reply-all` \| `forward`; always present in JSON |
+| `thread` | `threadId` | only for replies |
+| `in-reply-to` | `inReplyTo` | only for replies |
+| `to`, `cc` | `to`, `cc` | arrays of `{ name?, address }`; `cc` may be `[]` |
+| `subject` | `subject` | |
+| body | `body` | raw text, **no** `\---` escaping |
+| | `command` | the `/inbox-send v1` text block |
+| | `sentAt` | ISO-8601, when the viewer sent it |
+| `inbox` (refresh) | `inbox` | |
+| | `action`, `threadId` (`inbox-action`) | reserved: `archive` \| `unarchive` \| `star` \| `unstar` \| `read` \| `unread`; not sent by the viewer yet |
+
+Authentication is one header, `<keyHeader>: <keyPrefix><key>` (default `Authorization: Bearer <key>`), configured in the viewer's Settings. See [RELAY.md](RELAY.md) for the direct-then-`/api/relay` delivery and the security rules the bot applies (`bot/SKILL.md`, Part F).
 
 ## Versioning
 
