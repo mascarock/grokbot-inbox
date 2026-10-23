@@ -57,8 +57,11 @@ export function useInboxSession() {
       void load(createLinkSource(payload));
       return;
     }
-    const src = new URLSearchParams(window.location.search).get('src');
+    const params = new URLSearchParams(window.location.search);
+    const src = params.get('src');
     if (src) void load(createUrlSource(src));
+    // `/demo` (a redirect to `/?demo`) opens the fictional sample inbox.
+    else if (params.has('demo')) void load(createSampleSource());
   }, [load]);
 
   useEffect(() => {
