@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { plusTags } from './addresses';
-import { collectPlusTags, filterThreads, type ThreadFilters } from './filterThreads';
+import { INITIAL_FILTERS, collectPlusTags, filterThreads, type ThreadFilters } from './filterThreads';
+import { EMPTY_STATE, addLabel, markRead, toggleArchive, toggleStar } from './localInboxState';
 import { parseInboxExport } from '../sources/parseExport';
 
 const inbox = parseInboxExport({
@@ -64,8 +65,10 @@ const inbox = parseInboxExport({
 });
 
 function filters(partial: Partial<ThreadFilters> = {}): ThreadFilters {
-  return { query: '', direction: 'all', tag: null, ...partial };
+  return { ...INITIAL_FILTERS, ...partial };
 }
+
+const ids = (threads: { id: string }[]) => threads.map((thread) => thread.id);
 
 describe('plus tags and filters', () => {
   it('reads plus-tags from the local part', () => {
@@ -89,5 +92,22 @@ describe('plus tags and filters', () => {
     ]);
     expect(filterThreads(inbox.threads, filters({ query: 'PROJECTOR' })).map((thread) => thread.id)).toEqual(['sent']);
     expect(filterThreads(inbox.threads, filters({ query: 'packing-list' })).map((thread) => thread.id)).toEqual(['sent']);
+  });
+
+  it('applies local folders and labels on top of the export', () => {
+    const me = inbox.inbox;
+    let state = toggleArchive(EMPTY_STATE, 'paris');
+    state = toggleStar(state, 'sent');
+    state = addLabel(state, 'roma', 'Camp');
+
+    expect(ids(filterThreads(inbox.threads, filters(), state, me))).toEqual(['roma', 'sent']);
+    expect(ids(filterThreads(inbox.threads, filters({ folder: 'archived' }), state, me))).toEqual(['paris']);
+    expect(ids(filterThreads(inbox.threads, filters({ folder: 'starred' }), state, me))).toEqual(['sent']);
+    expect(ids(filterThreads(inbox.threads, filters({ folder: 'unread' }), state, me))).toEqual(['roma']);
+    expect(ids(filterThreads(inbox.threads, filters({ label: 'Camp' }), state, me))).toEqual(['roma']);
+
+    const read = markRead(state, inbox.threads[0]);
+    expect(ids(filterThreads(inbox.threads, filters({ folder: 'unread' }), read, me))).toEqual([]);
+    expect(ids(filterThreads(inbox.threads, filters({ folder: 'unread', query: 'tent' }), state, me))).toEqual(['roma']);
   });
 });
