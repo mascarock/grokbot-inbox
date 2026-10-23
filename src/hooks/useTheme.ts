@@ -11,7 +11,8 @@ export function initialTheme(): Theme {
   } catch {
     /* private mode */
   }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  // Dark is the default; an explicit system preference for light is respected.
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
 export function useTheme() {
