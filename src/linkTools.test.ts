@@ -43,7 +43,7 @@ describe.each([
     const result = run(runtime, [script, samplePath, '--quiet']);
     expect(result.status, result.stderr).toBe(0);
     const link = result.stdout.trim();
-    expect(link.startsWith('https://mascarock.github.io/grokbot-inbox/#data=')).toBe(true);
+    expect(link.startsWith('https://inbox.mascaro.eu/#data=')).toBe(true);
     expect(link).toMatch(/^[^\s]+$/);
     const inbox = await openLink(link);
     expect(inbox).toEqual(expected);
@@ -52,11 +52,11 @@ describe.each([
   it('builds a lite link without quotes, HTML, inline images, or attachment bytes', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'grokbot-inbox-'));
     const liteJson = join(dir, 'lite.json');
-    const result = run(runtime, [script, samplePath, '--lite', '--write-json', liteJson, '--base', 'http://localhost:4173/grokbot-inbox/']);
+    const result = run(runtime, [script, samplePath, '--lite', '--write-json', liteJson, '--base', 'http://localhost:4173/']);
     expect(result.status, result.stderr).toBe(0);
     expect(result.stderr).toMatch(/lite mode/);
     const link = result.stdout.trim();
-    expect(link.startsWith('http://localhost:4173/grokbot-inbox/#data=')).toBe(true);
+    expect(link.startsWith('http://localhost:4173/#data=')).toBe(true);
 
     const inbox = await openLink(link);
     expect(inbox.mode).toBe('lite');
@@ -98,7 +98,7 @@ describe.each([
 describe('README demo link', () => {
   it('opens the fictional sample', async () => {
     const readme = readFileSync(resolve(root, 'README.md'), 'utf8');
-    const match = readme.match(/https:\/\/mascarock\.github\.io\/grokbot-inbox\/#data=[A-Za-z0-9_-]+/);
+    const match = readme.match(/https:\/\/inbox\.mascaro\.eu\/#data=[A-Za-z0-9_-]+/);
     expect(match, 'README has a demo link').toBeTruthy();
     const inbox = await openLink(match?.[0] ?? '');
     expect(inbox).toEqual(expected);
