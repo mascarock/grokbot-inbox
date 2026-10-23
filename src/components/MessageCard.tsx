@@ -1,0 +1,109 @@
+import { addressesEqual, formatParticipant, shortName } from '../lib/addresses';
+import { formatMessageTime, formatThreadTime } from '../lib/dates';
+import { effectiveDirection, messageSnippet } from '../lib/filterThreads';
+import { htmlHasRemoteImages } from '../lib/sanitizeHtml';
+import type { Message } from '../types/inbox';
+import { AttachmentList } from './AttachmentList';
+import { Avatar } from './Avatar';
+import { HtmlBody } from './HtmlBody';
+import { TextBody } from './TextBody';
+
+export function CollapsedMessage({ message, onOpen }: { message: Message; onOpen: () => void }) {
+  const label = shortName(message.from);
+  return (
+    <button
+      type="button"
+      className="message-collapsed"
+      onClick={onOpen}
+      aria-expanded={false}
+      aria-label={`Show message from ${label}`}
+    >
+      <Avatar participant={message.from} />
+      <span className="collapsed-name">{label}</span>
+      <span className="snippet">{messageSnippet(message) || 'Empty message'}</span>
+      <time dateTime={message.date || undefined}>{message.date ? formatThreadTime(message.date) : ''}</time>
+    </button>
+  );
+}
+
+export function MessageCard({
+  message,
+  inboxAddress,
+  theme,
+  remoteImages,
+  inlineOpen,
+  onToggleRemote,
+  onToggleInline,
+  threadSubject,
+}: {
+  message: Message;
+  inboxAddress: string;
+  theme: 'light' | 'dark';
+  remoteImages: boolean;
+  inlineOpen: boolean;
+  onToggleRemote: () => void;
+  onToggleInline: () => void;
+  threadSubject: string;
+}) {
+  const isYou = addressesEqual(message.from.address, inboxAddress);
+  const label = shortName(message.from);
+  const showAddress = Boolean(message.from.name && message.from.address);
+  const direction = effectiveDirection(message);
+  const showSubject = message.subject.trim() && message.subject.trim() !== threadSubject.trim();
+  const html = message.html?.trim();
+  const text = message.text ?? '';
+  const hasRemote = Boolean(html && htmlHasRemoteImages(html));
+  const toLine = message.to.map(formatParticipant).join(', ');
+  const ccLine = (message.cc ?? []).map(formatParticipant).join(', ');
+
+  return (
+    <article className="message" id={`message-${message.id}`}>
+      <header className="message-head">
+        <Avatar participant={message.from} />
+        <div className="message-who">
+          <div className="message-from">
+            <strong>{label}</strong>
+            {isYou && <span className="you-pill">You</span>}
+            <span className="direction-label">{direction === 'sent' ? 'Sent' : 'Received'}</span>
+          </div>
+          {showAddress && <div className="message-address">{message.from.address}</div>}
+          {(toLine || ccLine) && (
+            <p className="recipients">
+              {toLine && (
+                <>
+                  <span className="recipients-label">to</span> {toLine}
+                </>
+              )}
+              {ccLine && (
+                <>
+                  <span className="recipients-label">cc</span> {ccLine}
+                </>
+              )}
+            </p>
+          )}
+        </div>
+        <time className="message-time" dateTime={message.date || undefined} title={message.date}>
+          {message.date ? formatMessageTime(message.date) : 'Unknown time'}
+        </time>
+      </header>
+      {showSubject && <p className="message-subject">{message.subject}</p>}
+      <div className="message-body">
+        {html ? (
+          <>
+            {hasRemote && (
+              <button type="button" className="inline-toggle remote-toggle" onClick={onToggleRemote}>
+                {remoteImages ? 'Hide remote images' : 'Load remote images'}
+              </button>
+            )}
+            <HtmlBody html={html} allowRemoteImages={remoteImages} theme={theme} />
+          </>
+        ) : text.trim() ? (
+          <TextBody text={text} />
+        ) : (
+          <p className="fine-print">No body in this export.</p>
+        )}
+        <AttachmentList attachments={message.attachments} inlineOpen={inlineOpen} onToggleInline={onToggleInline} />
+      </div>
+    </article>
+  );
+}

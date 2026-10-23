@@ -1,0 +1,10 @@
+node_modules
+dist
+.DS_Store
+*.local
+.vite
+coverage
+
+# Local mailbox exports. The fictional sample under examples/ is the only inbox JSON that belongs in git.
+/exports/
+*.export.json

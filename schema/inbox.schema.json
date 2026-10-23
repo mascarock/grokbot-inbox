@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mascarock/grokbot-inbox/schema/inbox.schema.json",
+  "title": "Grok Bot inbox export",
+  "description": "Read-only JSON export of one Grok Bot agent inbox. Viewers must ignore unknown properties and accept omitted optional fields. See docs/SCHEMA.md.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["inbox", "exportedAt", "threads"],
+  "properties": {
+    "inbox": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Mailbox the export was read from, such as name+tag@mail.grokbot.com."
+    },
+    "exportedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the export was produced, ISO-8601."
+    },
+    "mode": {
+      "enum": ["full", "lite"],
+      "description": "Omitted means full. A lite export leaves out quoted replies, HTML bodies, inline images, and attachment bytes so it fits in a viewer link. See docs/LINK.md."
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional exporter metadata. The viewer does not require a fixed shape."
+    },
+    "threads": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/thread" }
+    }
+  },
+  "$defs": {
+    "thread": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "subject", "participants", "lastMessageAt", "messages"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "subject": { "type": "string" },
+        "participants": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/participant" }
+        },
+        "lastMessageAt": { "type": "string", "format": "date-time" },
+        "messageCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total messages in the thread. May be greater than messages.length when the export is partial."
+        },
+        "messages": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/message" }
+        }
+      }
+    },
+    "participant": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["address"],
+      "properties": {
+        "name": { "type": "string", "description": "Display name. Omit when the mailbox has none." },
+        "address": { "type": "string" }
+      }
+    },
+    "message": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "from", "to", "date", "subject", "attachments"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "direction": { "enum": ["sent", "received"] },
+        "from": { "$ref": "#/$defs/participant" },
+        "to": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/participant" }
+        },
+        "cc": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/participant" }
+        },
+        "date": { "type": "string", "format": "date-time" },
+        "subject": { "type": "string" },
+        "text": { "type": "string", "description": "Plain-text body. Preferred when HTML is absent." },
+        "html": { "type": "string", "description": "HTML body, only when the message actually has HTML." },
+        "attachments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/attachment" }
+        }
+      }
+    },
+    "attachment": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["filename", "contentType", "size"],
+      "properties": {
+        "filename": { "type": "string" },
+        "contentType": { "type": "string" },
+        "size": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Size in bytes. May be approximate."
+        },
+        "sizeDisplay": {
+          "type": "string",
+          "description": "Optional human-readable size, such as \"12 KB\"."
+        },
+        "inline": {
+          "type": "boolean",
+          "description": "True for inline parts such as signature images. Viewers hide these by default."
+        },
+        "attachmentId": { "type": "string" },
+        "url": {
+          "type": "string",
+          "description": "Optional way to open the bytes. Omit when the export does not include the file."
+        }
+      }
+    }
+  }
+}
