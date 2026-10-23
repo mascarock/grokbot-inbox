@@ -1,4 +1,4 @@
-import { LogoMark } from './Icons';
+import { FileIcon, FolderOpenIcon, LogoMark, SparkIcon } from './Icons';
 
 export function EmptyState({
   loading,
@@ -11,25 +11,39 @@ export function EmptyState({
 }) {
   return (
     <div className="empty-wrap">
+      <div className="empty-glow" aria-hidden="true" />
       <div className="empty-card">
-        <LogoMark />
-        <h1>Read your Grok Bot inbox</h1>
-        <p>
-          Grok Bot has no public inbox API. Ask your own bot for a JSON export, then open it here. The file is
-          parsed in this browser and is not uploaded.
+        <div className="empty-brand">
+          <LogoMark size={40} />
+          <span className="brand-name">Grok Bot Inbox</span>
+        </div>
+        <h1>Your bot's mail, read in your browser.</h1>
+        <p className="empty-lead">
+          Grok Bot has no public inbox API, so your own bot exports the mailbox and hands you a link. The page decodes it
+          locally. Nothing is uploaded, and replies go back through your bot.
         </p>
         <div className="empty-actions">
           <button type="button" className="btn btn-primary" onClick={onSample} disabled={loading}>
-            {loading ? 'Opening…' : 'Load sample'}
+            <SparkIcon />
+            {loading ? 'Opening…' : 'Load sample inbox'}
           </button>
           <button type="button" className="btn" onClick={onOpen} disabled={loading}>
+            <FolderOpenIcon />
             Open export
           </button>
         </div>
-        <p className="fine-print">
-          Or drop a .json file on this page. A <code>?src=https://…</code> link also works when that URL allows
-          browser access. You only see the export you opened.
-        </p>
+        <ul className="empty-steps">
+          <li>
+            <FileIcon />
+            <span>
+              Or drop a <code>.json</code> export anywhere on this page.
+            </span>
+          </li>
+          <li>
+            <span className="mono empty-cmd">#data=</span>
+            <span>Links from your bot carry the inbox in the URL fragment, which never reaches a server.</span>
+          </li>
+        </ul>
       </div>
     </div>
   );

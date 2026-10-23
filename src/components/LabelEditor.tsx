@@ -66,7 +66,7 @@ export function LabelEditor({
           </button>
         </form>
       ) : (
-        <button type="button" className="chip" onClick={() => setAdding(true)}>
+        <button type="button" className="chip chip-add" onClick={() => setAdding(true)}>
           + Label
         </button>
       )}

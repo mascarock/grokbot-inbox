@@ -7,6 +7,7 @@ import type { Message } from '../types/inbox';
 import { AttachmentList } from './AttachmentList';
 import { Avatar } from './Avatar';
 import { HtmlBody } from './HtmlBody';
+import { ForwardIcon, ReplyAllIcon, ReplyIcon } from './Icons';
 import { TextBody } from './TextBody';
 
 export function CollapsedMessage({ message, onOpen }: { message: Message; onOpen: () => void }) {
@@ -21,8 +22,10 @@ export function CollapsedMessage({ message, onOpen }: { message: Message; onOpen
     >
       <Avatar participant={message.from} />
       <span className="collapsed-name">{label}</span>
-      <span className="snippet">{messageSnippet(message) || 'Empty message'}</span>
-      <time dateTime={message.date || undefined}>{message.date ? formatThreadTime(message.date) : ''}</time>
+      <span className="row-snippet">{messageSnippet(message) || 'Empty message'}</span>
+      <time className="mono" dateTime={message.date || undefined}>
+        {message.date ? formatThreadTime(message.date) : ''}
+      </time>
     </button>
   );
 }
@@ -66,28 +69,43 @@ export function MessageCard({
         <div className="message-who">
           <div className="message-from">
             <strong>{label}</strong>
+            {showAddress && <span className="message-address mono">{message.from.address}</span>}
             {isYou && <span className="you-pill">You</span>}
-            <span className="direction-label">{direction === 'sent' ? 'Sent' : 'Received'}</span>
+            {direction === 'sent' && !isYou && <span className="you-pill">Sent</span>}
           </div>
-          {showAddress && <div className="message-address">{message.from.address}</div>}
           {(toLine || ccLine) && (
             <p className="recipients">
               {toLine && (
                 <>
-                  <span className="recipients-label">to</span> {toLine}
+                  <span className="recipients-label">to</span>
+                  <span className="mono">{toLine}</span>
                 </>
               )}
               {ccLine && (
                 <>
-                  <span className="recipients-label">cc</span> {ccLine}
+                  <span className="recipients-label">cc</span>
+                  <span className="mono">{ccLine}</span>
                 </>
               )}
             </p>
           )}
         </div>
-        <time className="message-time" dateTime={message.date || undefined} title={message.date}>
-          {message.date ? formatMessageTime(message.date) : 'Unknown time'}
-        </time>
+        <div className="message-side">
+          <time className="message-time mono" dateTime={message.date || undefined} title={message.date}>
+            {message.date ? formatMessageTime(message.date) : 'Unknown time'}
+          </time>
+          <div className="message-actions" aria-label="Message actions">
+            <button type="button" className="icon-btn is-small" onClick={() => onCompose('reply')} aria-label="Reply" title="Reply">
+              <ReplyIcon />
+            </button>
+            <button type="button" className="icon-btn is-small" onClick={() => onCompose('reply-all')} aria-label="Reply all" title="Reply all">
+              <ReplyAllIcon />
+            </button>
+            <button type="button" className="icon-btn is-small" onClick={() => onCompose('forward')} aria-label="Forward" title="Forward">
+              <ForwardIcon />
+            </button>
+          </div>
+        </div>
       </header>
       {showSubject && <p className="message-subject">{message.subject}</p>}
       <div className="message-body">
@@ -107,17 +125,6 @@ export function MessageCard({
         )}
         <AttachmentList attachments={message.attachments} inlineOpen={inlineOpen} onToggleInline={onToggleInline} />
       </div>
-      <footer className="message-actions" aria-label="Message actions">
-        <button type="button" className="btn btn-small" onClick={() => onCompose('reply')}>
-          Reply
-        </button>
-        <button type="button" className="btn btn-small" onClick={() => onCompose('reply-all')}>
-          Reply all
-        </button>
-        <button type="button" className="btn btn-small" onClick={() => onCompose('forward')}>
-          Forward
-        </button>
-      </footer>
     </article>
   );
 }
