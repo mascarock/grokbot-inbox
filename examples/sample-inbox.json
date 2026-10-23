@@ -1,0 +1,363 @@
+{
+  "inbox": "demo+roma@mail.grokbot.com",
+  "exportedAt": "2026-10-23T14:05:00Z",
+  "exporter": "sample",
+  "threads": [
+    {
+      "id": "th-tent",
+      "subject": "Meeting point at the orange tent",
+      "participants": [
+        {
+          "name": "Alice Example",
+          "address": "alice@example.com"
+        },
+        {
+          "name": "Demo Bot",
+          "address": "demo+roma@mail.grokbot.com"
+        }
+      ],
+      "lastMessageAt": "2026-10-23T13:40:00Z",
+      "messageCount": 3,
+      "folder": "INBOX",
+      "messages": [
+        {
+          "id": "m-tent-1",
+          "direction": "received",
+          "from": {
+            "name": "Alice Example",
+            "address": "alice@example.com"
+          },
+          "to": [
+            {
+              "name": "Demo Bot",
+              "address": "demo+roma@mail.grokbot.com"
+            }
+          ],
+          "date": "2026-10-22T10:00:00Z",
+          "subject": "Meeting point at the orange tent",
+          "text": "Can we meet at the orange tent by the garden gate?\n\nI can be there from 10:00. If it rains, same spot — the tent has a side wall.\n\nAlice",
+          "attachments": [
+            {
+              "filename": "signature.png",
+              "contentType": "image/png",
+              "size": 184,
+              "inline": true,
+              "attachmentId": "sig-alice",
+              "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAAkCAYAAABCKP5eAAAAf0lEQVR42u3SQQkAIQAAQUPYx57mMYFVfAmCRrjHgajMZwrshpziDABwFa0W4Be+gq/gK/jKV/AV3v5qjr4HoXzlK/gKvoKvfOUrX8FX8JWvfOUrvPKVAL7yFXwFX8FXvoKv4Cv4ylfwFXwFXwG+gq/gK8BX8BV8BXx+BQBHswCub00elRKZ9gAAAABJRU5ErkJggg=="
+            }
+          ]
+        },
+        {
+          "id": "m-tent-2",
+          "direction": "sent",
+          "from": {
+            "name": "Demo Bot",
+            "address": "demo+roma@mail.grokbot.com"
+          },
+          "to": [
+            {
+              "name": "Alice Example",
+              "address": "alice@example.com"
+            }
+          ],
+          "date": "2026-10-23T09:02:00Z",
+          "subject": "Re: Meeting point at the orange tent",
+          "text": "Yes. I'll be at the orange tent at 10:00 with the banner and a spare power bank.\n\nThe gravel path is easier with the crate of badges.\n\n— Demo Bot",
+          "attachments": []
+        },
+        {
+          "id": "m-tent-3",
+          "direction": "received",
+          "from": {
+            "name": "Alice Example",
+            "address": "alice@example.com"
+          },
+          "to": [
+            {
+              "name": "Demo Bot",
+              "address": "demo+roma@mail.grokbot.com"
+            }
+          ],
+          "cc": [
+            {
+              "address": "events@example.com"
+            }
+          ],
+          "date": "2026-10-23T13:40:00Z",
+          "subject": "Re: Meeting point at the orange tent",
+          "text": "Perfect — orange tent it is.\n\nI attached a one-page map. The tent is on the gravel path, not the terrace. I'll bring tape for the banner.\n\nSee you at 10:00.\n\nAlice\nExample Studio\nalice@example.com\n\nOn Thu, Oct 22, 2026 at 10:00 AM Alice Example <alice@example.com> wrote:\n> Can we meet at the orange tent by the garden gate?\n> I can be there from 10:00. If it rains, same spot — the tent has a side wall.\n>\n> Alice",
+          "attachments": [
+            {
+              "filename": "venue-map.pdf",
+              "contentType": "application/pdf",
+              "size": 176128,
+              "sizeDisplay": "172 KB",
+              "inline": false,
+              "attachmentId": "map-1"
+            },
+            {
+              "filename": "signature.png",
+              "contentType": "image/png",
+              "size": 184,
+              "inline": true,
+              "attachmentId": "sig-alice",
+              "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAAkCAYAAABCKP5eAAAAf0lEQVR42u3SQQkAIQAAQUPYx57mMYFVfAmCRrjHgajMZwrshpziDABwFa0W4Be+gq/gK/jKV/AV3v5qjr4HoXzlK/gKvoKvfOUrX8FX8JWvfOUrvPKVAL7yFXwFX8FXvoKv4Cv4ylfwFXwFXwG+gq/gK8BX8BV8BXx+BQBHswCub00elRKZ9gAAAABJRU5ErkJggg=="
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "th-badge",
+      "subject": "Re: Badge pickup for Saturday",
+      "participants": [
+        {
+          "address": "marco@example.com"
+        },
+        {
+          "address": "demo+roma@mail.grokbot.com"
+        }
+      ],
+      "lastMessageAt": "2026-10-23T11:05:00Z",
+      "messages": [
+        {
+          "id": "m-badge-1",
+          "direction": "received",
+          "from": {
+            "address": "marco@example.com"
+          },
+          "to": [
+            {
+              "address": "demo+roma@mail.grokbot.com"
+            }
+          ],
+          "date": "2026-10-23T08:10:00Z",
+          "subject": "Badge pickup for Saturday",
+          "text": "Badges are in a crate at the north desk.\n\nIf your name is missing, tell the desk and they will write a temporary one. Please do not reprint the whole stack.\n\n— Marco",
+          "attachments": [
+            {
+              "filename": "logo-inline.png",
+              "contentType": "image/png",
+              "size": 184,
+              "inline": true,
+              "attachmentId": "sig-marco",
+              "url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAAkCAYAAABCKP5eAAAAf0lEQVR42u3SQQkAIQAAQUPYx57mMYFVfAmCRrjHgajMZwrshpziDABwFa0W4Be+gq/gK/jKV/AV3v5qjr4HoXzlK/gKvoKvfOUrX8FX8JWvfOUrvPKVAL7yFXwFX8FXvoKv4Cv4ylfwFXwFXwG+gq/gK8BX8BV8BXx+BQBHswCub00elRKZ9gAAAABJRU5ErkJggg=="
+            },
+            {
+              "filename": "spacer.png",
+              "contentType": "image/png",
+              "size": 4096,
+              "sizeDisplay": "4 KB",
+              "inline": true,
+              "attachmentId": "sig-spacer"
+            }
+          ]
+        },
+        {
+          "id": "m-badge-2",
+          "direction": "received",
+          "from": {
+            "address": "marco@example.com"
+          },
+          "to": [
+            {
+              "address": "demo+roma@mail.grokbot.com"
+            }
+          ],
+          "date": "2026-10-23T11:05:00Z",
+          "subject": "Re: Badge pickup for Saturday",
+          "text": "The crate is labeled ROME and it is under the desk, not on it.\n\nI will be there from 8:30.\n\nmarco@example.com\n\nOn Fri, Oct 23, 2026 at 8:10 AM marco@example.com wrote:\n> Badges are in a crate at the north desk.",
+          "attachments": [
+            {
+              "filename": "badge-icon.png",
+              "contentType": "image/png",
+              "size": 2048,
+              "sizeDisplay": "about 2 KB",
+              "inline": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "th-cables",
+      "subject": "Re: Projector and spare cables",
+      "participants": [
+        {
+          "name": "Demo Bot",
+          "address": "demo+roma@mail.grokbot.com"
+        },
+        {
+          "name": "Leo Example",
+          "address": "leo@example.com"
+        }
+      ],
+      "lastMessageAt": "2026-10-23T08:15:00Z",
+      "messageCount": 1,
+      "messages": [
+        {
+          "id": "m-cables-1",
+          "direction": "sent",
+          "from": {
+            "name": "Demo Bot",
+            "address": "demo+roma@mail.grokbot.com"
+          },
+          "to": [
+            {
+              "name": "Leo Example",
+              "address": "leo@example.com"
+            }
+          ],
+          "date": "2026-10-23T08:15:00Z",
+          "subject": "Re: Projector and spare cables",
+          "text": "I packed the projector, two HDMI cables, and a spare power strip.\n\nIf the hall outlet is on the far wall, the extension cord in the blue bin reaches. I checked it this morning.\n\n— Demo Bot",
+          "attachments": [
+            {
+              "filename": "packing-list.txt",
+              "contentType": "text/plain",
+              "size": 211,
+              "inline": false,
+              "url": "data:text/plain;base64,Um9tZSBidWlsZCBkYXkg4oCUIGZpY3Rpb25hbCBwYWNraW5nIGxpc3QKCi0gUHJvamVjdG9yCi0gVHdvIEhETUkgY2FibGVzCi0gU3BhcmUgcG93ZXIgc3RyaXAKLSBFeHRlbnNpb24gY29yZCAoYmx1ZSBiaW4pCgpUaGlzIGZpbGUgaXMgbm90IGEgcmVhbCBhdHRhY2htZW50LiBJdCBleGlzdHMgc28gdGhlIHNhbXBsZSBpbmJveCBoYXMgc29tZXRoaW5nIHRvIG9wZW4uCg=="
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "th-lunch",
+      "subject": "Lunch near the forum",
+      "participants": [
+        {
+          "name": "Bianca Rossi",
+          "address": "bianca@example.com"
+        },
+        {
+          "name": "Demo Bot",
+          "address": "demo+roma@mail.grokbot.com"
+        }
+      ],
+      "lastMessageAt": "2026-10-22T16:45:00Z",
+      "messageCount": 1,
+      "messages": [
+        {
+          "id": "m-lunch-1",
+          "direction": "received",
+          "from": {
+            "name": "Bianca Rossi",
+            "address": "bianca@example.com"
+          },
+          "to": [
+            {
+              "name": "Demo Bot",
+              "address": "demo+roma@mail.grokbot.com"
+            }
+          ],
+          "cc": [
+            {
+              "address": "events@example.com"
+            }
+          ],
+          "date": "2026-10-22T16:45:00Z",
+          "subject": "Lunch near the forum",
+          "text": "Hello,\n\nA few of us are grabbing lunch after the tent meeting. The place is a short walk from the garden gate, and they can seat twelve if we arrive together.\n\nThe Saturday plate is vegetarian. The allergen list is on the door.\n\n— Bianca",
+          "html": "<p>Hello,</p><p>A few of us are grabbing lunch after the tent meeting. The place is a short walk from the garden gate, and they can seat twelve if we arrive together.</p><p>The Saturday plate is vegetarian. The allergen list is on the door.</p><p>Map pin: <a href=\"https://example.com/rome-build-day/lunch\">example.com/rome-build-day/lunch</a></p><img src=\"https://images.example.com/lunch-banner.png\" alt=\"Illustrated storefront\"><script>alert('xss')</script><p style=\"background-image:url(https://images.example.com/bg.png)\">Come hungry.</p><p>— Bianca</p>",
+          "attachments": [
+            {
+              "filename": "lunch-spots.txt",
+              "contentType": "text/plain",
+              "size": 540,
+              "sizeDisplay": "1 KB",
+              "inline": false
+            }
+          ],
+          "mailbox": "INBOX"
+        }
+      ]
+    },
+    {
+      "id": "th-welcome",
+      "subject": "Welcome to Rome build day",
+      "participants": [
+        {
+          "name": "Example Organizers",
+          "address": "organizers@example.com"
+        },
+        {
+          "name": "Demo Bot",
+          "address": "demo+roma@mail.grokbot.com"
+        }
+      ],
+      "lastMessageAt": "2026-10-20T09:00:00Z",
+      "messages": [
+        {
+          "id": "m-welcome-1",
+          "direction": "received",
+          "from": {
+            "name": "Example Organizers",
+            "address": "organizers@example.com"
+          },
+          "to": [
+            {
+              "name": "Demo Bot",
+              "address": "demo+roma@mail.grokbot.com"
+            }
+          ],
+          "date": "2026-10-20T09:00:00Z",
+          "subject": "Welcome to Rome build day",
+          "text": "Welcome to Rome build day.\n\nThis is a fictional note in the sample inbox. Doors open at 9:30, the first demo starts at 10:30, and the orange tent is the meeting point if you get lost.\n\nReply to this thread if you need a badge correction before Friday.\n\n— Example Organizers",
+          "attachments": []
+        }
+      ]
+    },
+    {
+      "id": "th-paris",
+      "subject": "Re: Side trip after the last demo",
+      "participants": [
+        {
+          "name": "Chloe Martin",
+          "address": "chloe@example.com"
+        },
+        {
+          "name": "Demo Bot",
+          "address": "demo+paris@mail.grokbot.com"
+        }
+      ],
+      "lastMessageAt": "2026-10-19T18:20:00Z",
+      "messageCount": 1,
+      "messages": [
+        {
+          "id": "m-paris-1",
+          "direction": "received",
+          "from": {
+            "name": "Chloe Martin",
+            "address": "chloe@example.com"
+          },
+          "to": [
+            {
+              "name": "Demo Bot",
+              "address": "demo+paris@mail.grokbot.com"
+            }
+          ],
+          "date": "2026-10-19T18:20:00Z",
+          "subject": "Re: Side trip after the last demo",
+          "text": "The side trip is optional and leaves after the last demo.\n\nWe will walk to the viewpoint and be back before dinner. No equipment to carry. If you want a seat, reply to this message.\n\nDetails, such as they are: https://example.com/side-trip\n\n— Chloe",
+          "attachments": [
+            {
+              "filename": "viewpoint.jpg",
+              "contentType": "image/jpeg",
+              "size": 240000,
+              "sizeDisplay": "234 KB",
+              "inline": false,
+              "attachmentId": "photo-1"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "source": {
+    "via": "sample",
+    "readOnly": true,
+    "note": "Fictional sample. Not a real inbox."
+  }
+}
