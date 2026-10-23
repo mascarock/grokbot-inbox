@@ -19,12 +19,14 @@ import {
   ReplyAllIcon,
   ReplyIcon,
   SearchIcon,
+  SettingsIcon,
   SparkIcon,
   StarIcon,
   SunIcon,
   TagIcon,
   TrashIcon,
 } from './components/Icons';
+import { SettingsModal } from './components/SettingsModal';
 import { ShortcutsModal } from './components/ShortcutsModal';
 import { Sidebar } from './components/Sidebar';
 import { SkeletonInbox } from './components/Skeleton';
@@ -36,9 +38,20 @@ import { useMatchMedia } from './hooks/useMatchMedia';
 import { useTheme } from './hooks/useTheme';
 import { participantSummary } from './lib/addresses';
 import { copyText } from './lib/clipboard';
-import { formatRefreshCommand, type ComposeKind } from './lib/command';
+import { formatRefreshCommand, type ComposeKind, type SendCommand } from './lib/command';
 import { draftKey, startDraft, type Draft } from './lib/compose';
-import { formatExportTime } from './lib/dates';
+import { formatExportTime, formatRelativeTime } from './lib/dates';
+import {
+  applyPrefill,
+  buildRefreshPayload,
+  buildSendPayload,
+  clearWebhookSettings,
+  deliver,
+  isConfigured,
+  loadWebhookSettings,
+  saveWebhookSettings,
+  type WebhookSettings,
+} from './lib/webhook';
 import { FOLDERS, INITIAL_FILTERS, collectPlusTags, filterThreads, type Folder } from './lib/filterThreads';
 import { allLabels, isArchived, isStarred, isUnread, threadLabels } from './lib/localInboxState';
 import type { Message, Thread } from './types/inbox';
@@ -54,6 +67,9 @@ export function App() {
   const {
     inbox,
     sourceKind,
+    sessionId,
+    snapshot,
+    refreshSnapshot,
     error,
     loading,
     dragging,
@@ -75,9 +91,30 @@ export function App() {
   const [mobileThread, setMobileThread] = useState(false);
   const [compose, setCompose] = useState<Draft | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [pillHidden, setPillHidden] = useState(false);
+  const [webhook, setWebhook] = useState<WebhookSettings>(() => loadWebhookSettings());
+  const [clock, setClock] = useState(() => Date.now());
+  const webhookReady = isConfigured(webhook);
+
+  // The snapshot may carry the bot's webhook URL so the user only pastes the key.
+  useEffect(() => {
+    if (!inbox?.relay) return;
+    setWebhook((current) => {
+      const next = applyPrefill(current, inbox.relay);
+      if (next !== current) saveWebhookSettings(next);
+      return next;
+    });
+  }, [inbox]);
+
+  // Keeps "updated X min ago" honest without re-rendering every second.
+  useEffect(() => {
+    if (!snapshot) return;
+    const timer = window.setInterval(() => setClock(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [snapshot]);
 
   const inboxAddress = inbox?.inbox ?? '';
   const visible = useMemo(() => {
@@ -118,11 +155,13 @@ export function App() {
     if (selected && threadOpen) local.markRead(selected);
   }, [selected, threadOpen, local]);
 
+  // Only on a user-initiated open. A background snapshot refresh changes
+  // `inbox` too, and must not close a half-written reply.
   useEffect(() => {
     setMobileThread(false);
     setCompose(null);
     setPillHidden(false);
-  }, [inbox]);
+  }, [sessionId]);
 
   useEffect(() => {
     const unread = counts.unread > 0 ? `(${counts.unread}) ` : '';
@@ -200,6 +239,60 @@ export function App() {
     );
   }, [inbox, toast]);
 
+  /**
+   * Refresh, best path first: re-check the encrypted snapshot, then ask the
+   * bot over the webhook to publish a new one, and only then fall back to
+   * the copy-and-paste command.
+   */
+  const refresh = useCallback(async () => {
+    if (!inbox) return;
+    if (snapshot) {
+      const changed = await refreshSnapshot(true);
+      if (changed) {
+        toast('Inbox updated from your bot\'s latest snapshot.');
+        return;
+      }
+    }
+    if (webhookReady) {
+      const result = await deliver(buildRefreshPayload(inbox.inbox), webhook);
+      if (result.ok) {
+        toast(snapshot ? 'Asked your bot to publish a fresh snapshot. It appears here when ready.' : 'Asked your bot for a fresh export. Check your Grok Bot chat.');
+        return;
+      }
+      toast(`${result.error ?? 'The bot could not be reached.'} Copying /inbox-refresh instead.`, 'error');
+    }
+    if (snapshot && !webhookReady) {
+      toast('Already up to date with the latest published snapshot.');
+      return;
+    }
+    await copyRefresh();
+  }, [inbox, snapshot, refreshSnapshot, webhookReady, webhook, toast, copyRefresh]);
+
+  const deliverSend = useCallback(
+    (command: Omit<SendCommand, 'version'>, commandText: string) => deliver(buildSendPayload(command, commandText), webhook),
+    [webhook],
+  );
+
+  const saveWebhook = useCallback(
+    (next: WebhookSettings) => {
+      setWebhook(next);
+      saveWebhookSettings(next);
+      toast(isConfigured(next) ? 'Webhook saved on this device. "Send with my bot" now posts directly.' : 'Settings saved.');
+    },
+    [toast],
+  );
+
+  const clearWebhook = useCallback(() => {
+    clearWebhookSettings();
+    setWebhook(loadWebhookSettings());
+  }, []);
+
+  const snapshotLabel = useMemo(() => {
+    if (!snapshot) return '';
+    const relative = formatRelativeTime(snapshot.updatedAt, new Date(clock));
+    return relative ? `updated ${relative}` : '';
+  }, [snapshot, clock]);
+
   const openThread = useCallback(
     (id: string) => {
       setSelectedId(id);
@@ -224,6 +317,7 @@ export function App() {
       if (event.key === 'Escape') {
         if (showPalette) setShowPalette(false);
         else if (showShortcuts) setShowShortcuts(false);
+        else if (showSettings) setShowSettings(false);
         else if (compose) closeCompose(compose);
         else if (typing) (target as HTMLElement).blur();
         return;
@@ -234,7 +328,7 @@ export function App() {
         setShowShortcuts((open) => !open);
         return;
       }
-      if (showShortcuts || compose) return;
+      if (showShortcuts || showSettings || compose) return;
       if (event.key === '/') {
         event.preventDefault();
         const search = document.getElementById('mail-search');
@@ -288,6 +382,7 @@ export function App() {
     narrow,
     compose,
     showShortcuts,
+    showSettings,
     showPalette,
     closeCompose,
     moveSelection,
@@ -328,12 +423,12 @@ export function App() {
       }
       items.push({
         id: 'refresh',
-        label: 'Refresh via your bot',
-        hint: 'copies /inbox-refresh',
+        label: snapshot ? 'Check for a newer snapshot' : 'Refresh via your bot',
+        hint: snapshot ? snapshotLabel || undefined : webhookReady ? 'asks your bot over the webhook' : 'copies /inbox-refresh',
         group: 'Actions',
-        keywords: 'reload export link',
+        keywords: 'reload export link update',
         icon: <RefreshIcon />,
-        run: () => void copyRefresh(),
+        run: () => void refresh(),
       });
       for (const folder of FOLDERS) {
         items.push({
@@ -388,11 +483,23 @@ export function App() {
     items.push(
       { id: 'theme', label: theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme', group: 'Settings', icon: theme === 'dark' ? <SunIcon /> : <MoonIcon />, run: toggleTheme },
       { id: 'shortcuts', label: 'Keyboard shortcuts', group: 'Settings', shortcut: '?', icon: <KeyboardIcon />, run: () => setShowShortcuts(true) },
+      {
+        id: 'settings',
+        label: 'Settings',
+        hint: webhookReady ? 'webhook connected' : 'connect your bot\'s webhook',
+        group: 'Settings',
+        keywords: 'webhook key relay device',
+        icon: <SettingsIcon />,
+        run: () => setShowSettings(true),
+      },
       { id: 'open', label: 'Open export file…', group: 'Settings', icon: <FolderOpenIcon />, run: () => fileRef.current?.click() },
     );
     if (!inbox) items.push({ id: 'sample', label: 'Load sample inbox', group: 'Settings', icon: <SparkIcon />, run: openSample });
     if (inbox && sourceKind === 'link') {
       items.push({ id: 'forget', label: 'Forget this inbox', hint: 'clears it from this tab', group: 'Settings', icon: <TrashIcon />, run: forget });
+    }
+    if (inbox && sourceKind === 'snapshot') {
+      items.push({ id: 'forget', label: 'Forget this device', hint: 'removes the decryption key', group: 'Settings', icon: <TrashIcon />, run: forget });
     }
     return items;
   }, [
@@ -405,11 +512,14 @@ export function App() {
     counts,
     theme,
     sourceKind,
+    snapshot,
+    snapshotLabel,
+    webhookReady,
     inboxAddress,
     openCompose,
     archiveSelected,
     markUnreadSelected,
-    copyRefresh,
+    refresh,
     setFilters,
     openThread,
     toggleTheme,
@@ -468,11 +578,13 @@ export function App() {
             theme={theme}
             exportedLabel={formatExportTime(inbox.exportedAt)}
             lite={inbox.mode === 'lite'}
+            live={snapshot ? { label: snapshotLabel, refreshing: snapshot.refreshing, stale: snapshot.stale } : null}
             onFilters={setFilters}
             onCompose={() => openCompose('new')}
-            onRefresh={() => void copyRefresh()}
+            onRefresh={() => void refresh()}
             onToggleTheme={toggleTheme}
             onShortcuts={() => setShowShortcuts(true)}
+            onSettings={() => setShowSettings(true)}
           />
           <ThreadList
             threads={visible}
@@ -536,14 +648,22 @@ export function App() {
         </div>
       )}
 
-      {inbox && sourceKind === 'link' && !pillHidden && (
+      {inbox && (sourceKind === 'link' || sourceKind === 'snapshot') && !pillHidden && (
         <div className="privacy-pill" role="status">
           <span className="pill-dot" aria-hidden="true" />
           <span>
-            Loaded only in your browser. The <code>#data</code> link was removed from the address bar.
+            {sourceKind === 'snapshot' ? (
+              <>
+                Decrypted only in your browser. The <code>#k</code> key was removed from the address bar and kept on this device.
+              </>
+            ) : (
+              <>
+                Loaded only in your browser. The <code>#data</code> link was removed from the address bar.
+              </>
+            )}
           </span>
           <button type="button" className="pill-link" onClick={forget}>
-            Forget
+            {sourceKind === 'snapshot' ? 'Forget this device' : 'Forget'}
           </button>
           <button type="button" className="pill-close" onClick={() => setPillHidden(true)} aria-label="Hide">
             <CloseIcon />
@@ -570,6 +690,9 @@ export function App() {
           }}
           onClose={() => closeCompose(compose)}
           onToast={toast}
+          webhookReady={webhookReady}
+          onDeliver={deliverSend}
+          onOpenSettings={() => setShowSettings(true)}
         />
       )}
 
@@ -581,6 +704,17 @@ export function App() {
         />
       )}
       {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      {showSettings && (
+        <SettingsModal
+          settings={webhook}
+          snapshot={snapshot}
+          prefilledUrl={inbox?.relay?.webhookUrl}
+          onSave={saveWebhook}
+          onClear={clearWebhook}
+          onForgetDevice={sourceKind === 'snapshot' ? forget : undefined}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
 
       {dragging && (
         <div className="drop-overlay">

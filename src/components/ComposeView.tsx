@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { canShare, copyText, shareText } from '../lib/clipboard';
-import { CommandError, formatSendCommand, parseRecipients } from '../lib/command';
+import { CommandError, formatSendCommand, parseRecipients, type SendCommand } from '../lib/command';
 import { draftBody, type Draft } from '../lib/compose';
-import { CloseIcon, CopyIcon, MaximizeIcon, MinimizeIcon, ShareIcon, TrashIcon } from './Icons';
+import type { DeliveryResult } from '../lib/webhook';
+import { CloseIcon, CopyIcon, MaximizeIcon, MinimizeIcon, SendIcon, ShareIcon, TrashIcon } from './Icons';
 
 const TITLES: Record<Draft['kind'], string> = {
   new: 'New message',
@@ -19,6 +20,9 @@ export function ComposeView({
   onDiscard,
   onClose,
   onToast,
+  webhookReady = false,
+  onDeliver,
+  onOpenSettings,
 }: {
   draft: Draft;
   inboxAddress: string;
@@ -27,11 +31,17 @@ export function ComposeView({
   onDiscard: () => void;
   onClose: () => void;
   onToast: (message: string, tone?: 'info' | 'error') => void;
+  /** True when a webhook URL and key are configured on this device. */
+  webhookReady?: boolean;
+  /** POSTs the payload to the bot (direct, then /api/relay). */
+  onDeliver?: (command: Omit<SendCommand, 'version'>, commandText: string) => Promise<DeliveryResult>;
+  onOpenSettings?: () => void;
 }) {
   const toRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [showCommand, setShowCommand] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const needsTo = draft.kind === 'forward' || draft.kind === 'new';
@@ -85,11 +95,45 @@ export function ComposeView({
     onToast(mode === 'share' ? 'Shared. Paste it in your bot chat.' : 'Copied, paste it in your bot chat');
   }
 
+  async function sendViaWebhook(event?: FormEvent) {
+    event?.preventDefault();
+    if (!command.text || !onDeliver) {
+      setError(command.problem);
+      return;
+    }
+    setSending(true);
+    try {
+      const result = await onDeliver(
+        {
+          from: inboxAddress,
+          kind: draft.kind,
+          thread: draft.threadId,
+          inReplyTo: draft.inReplyTo,
+          to: parseRecipients(draft.to),
+          cc: parseRecipients(draft.cc),
+          subject: draft.subject,
+          body: draftBody(draft),
+        },
+        command.text,
+      );
+      if (result.ok) {
+        onHanded({ ...draft, handedToBotAt: new Date().toISOString() });
+        onToast('Sent to your bot — confirm the draft in your Grok Bot chat.');
+        return;
+      }
+      setShowCommand(true);
+      onToast(`${result.error ?? 'The bot could not be reached.'} Copy the command instead.`, 'error');
+    } finally {
+      setSending(false);
+    }
+  }
+
   const problem = error ?? (!command.text && (draft.body || draft.to) ? command.problem : null);
+  const primary = webhookReady && onDeliver ? sendViaWebhook : (event?: FormEvent) => handToBot('copy', event);
 
   return (
     <section className={expanded ? 'compose is-expanded' : 'compose'} aria-label={TITLES[draft.kind]}>
-      <form className="compose-card" onSubmit={(event) => void handToBot('copy', event)}>
+      <form className="compose-card" onSubmit={(event) => void primary(event)}>
         <header className="compose-head">
           <div className="compose-title">
             <h2>{TITLES[draft.kind]}</h2>
@@ -172,10 +216,16 @@ export function ComposeView({
         )}
 
         <footer className="compose-foot">
-          <button type="submit" className="btn btn-primary">
-            <CopyIcon />
-            Send with my bot
+          <button type="submit" className="btn btn-primary" disabled={sending}>
+            {webhookReady ? <SendIcon /> : <CopyIcon />}
+            {sending ? 'Sending…' : 'Send with my bot'}
           </button>
+          {webhookReady && (
+            <button type="button" className="btn" onClick={() => void handToBot('copy')} title="Copy the command block instead of posting it">
+              <CopyIcon />
+              Copy
+            </button>
+          )}
           {canShare() && (
             <button type="button" className="btn" onClick={() => void handToBot('share')}>
               <ShareIcon />
@@ -190,7 +240,24 @@ export function ComposeView({
             <TrashIcon />
           </button>
         </footer>
-        <p className="compose-note">The viewer never sends mail. Paste the block in your Grok Bot chat; the bot shows a draft card you confirm.</p>
+        <p className="compose-note">
+          {webhookReady ? (
+            <>The viewer never sends mail. This posts the draft to your bot, which shows a draft card you confirm.</>
+          ) : (
+            <>
+              The viewer never sends mail. Paste the block in your Grok Bot chat; the bot shows a draft card you confirm.
+              {onOpenSettings && (
+                <>
+                  {' '}
+                  <button type="button" className="link-btn" onClick={onOpenSettings}>
+                    Connect a webhook
+                  </button>{' '}
+                  to skip the paste.
+                </>
+              )}
+            </>
+          )}
+        </p>
       </form>
     </section>
   );
