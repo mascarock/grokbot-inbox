@@ -43,7 +43,7 @@ describe.each([
     const result = run(runtime, [script, samplePath, '--quiet']);
     expect(result.status, result.stderr).toBe(0);
     const link = result.stdout.trim();
-    expect(link.startsWith('https://inbox.mascaro.eu/#data=')).toBe(true);
+    expect(link.startsWith('https://grokbot-inbox-mascarock.vercel.app/#data=')).toBe(true);
     expect(link).toMatch(/^[^\s]+$/);
     const inbox = await openLink(link);
     expect(inbox).toEqual(expected);
@@ -96,12 +96,17 @@ describe.each([
 });
 
 describe('README demo link', () => {
-  it('opens the fictional sample', async () => {
+  it('points at the short /demo route and carries no raw #data= payload', () => {
     const readme = readFileSync(resolve(root, 'README.md'), 'utf8');
-    const match = readme.match(/https:\/\/inbox\.mascaro\.eu\/#data=[A-Za-z0-9_-]+/);
-    expect(match, 'README has a demo link').toBeTruthy();
-    const inbox = await openLink(match?.[0] ?? '');
-    expect(inbox).toEqual(expected);
-    expect(decodeInboxPayload(readLinkPayload(new URL(match?.[0] ?? '').hash) ?? '')).toContain('demo+roma@mail.grokbot.com');
+    expect(readme).toContain('https://grokbot-inbox-mascarock.vercel.app/demo');
+    expect(readme).not.toMatch(/#data=[A-Za-z0-9_-]{20,}/);
+    // The redirect behind the button must exist.
+    const vercel = JSON.parse(readFileSync(resolve(root, 'vercel.json'), 'utf8')) as { redirects?: { source: string; destination: string }[] };
+    expect(vercel.redirects).toContainEqual(expect.objectContaining({ source: '/demo', destination: '/?demo' }));
+  });
+
+  it('the fictional sample behind /demo is what the link tools encode', () => {
+    const link = run('python3', [pyScript, samplePath, '--base', 'https://grokbot-inbox-mascarock.vercel.app/']).stdout.trim();
+    expect(decodeInboxPayload(readLinkPayload(new URL(link).hash) ?? '')).toContain('demo+roma@mail.grokbot.com');
   });
 });

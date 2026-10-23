@@ -17,5 +17,5 @@
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "examples/sample-inbox.json", "schema/inbox.schema.json"]
+  "include": ["src", "api", "bot/*.d.mts", "bot/*.test.ts", "examples/sample-inbox.json", "schema/inbox.schema.json"]
 }

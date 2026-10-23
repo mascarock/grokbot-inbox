@@ -3,9 +3,12 @@
 
 Standard library only, so a bot can fetch and run it anywhere Python 3 exists:
 
-    python3 make_link.py export.json
-    python3 make_link.py export.json --lite
-    cat export.json | python3 make_link.py -
+    python3 make_link.py export.json --base https://grokbot-inbox-<handle>.vercel.app/
+    python3 make_link.py export.json --lite --base https://grokbot-inbox-<handle>.vercel.app/
+    cat export.json | python3 make_link.py - --base https://...
+
+Pass --base: it is the owner's own deployment of the viewer. Without it the
+demo/fallback copy is used (see DEFAULT_BASE).
 
 The link is   <base>#data=<base64url(raw-deflate(utf8(compact JSON)))>
 The export travels in the URL fragment, which browsers never send to the
@@ -26,7 +29,10 @@ import sys
 import zlib
 from typing import Any
 
-DEFAULT_BASE = "https://inbox.mascaro.eu/"
+# There is no central viewer. Each bot deploys its owner's own copy and must
+# pass --base <that URL>. This default is the demo/fallback deployment only;
+# it is used for the README demo link and when a bot has no copy yet.
+DEFAULT_BASE = "https://grokbot-inbox-mascarock.vercel.app/"
 
 # Chromium drops URLs longer than 2 MiB (url::kMaxURLChars). We stop a bit
 # below that so the base URL and any chat-client wrapping still fit.
@@ -146,7 +152,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build a grokbot-inbox viewer link from an inbox export.")
     parser.add_argument("export", help="path to the export JSON, or - for stdin")
     parser.add_argument("--lite", action="store_true", help="drop quoted replies, HTML, inline images, and attachment bytes")
-    parser.add_argument("--base", default=DEFAULT_BASE, help=f"viewer URL (default {DEFAULT_BASE})")
+    parser.add_argument(
+        "--base",
+        default=None,
+        help=f"your viewer URL, e.g. https://grokbot-inbox-<handle>.vercel.app/ (falls back to the demo copy {DEFAULT_BASE})",
+    )
     parser.add_argument(
         "--max-chars",
         type=int,
@@ -174,7 +184,11 @@ def main(argv: list[str] | None = None) -> int:
             json.dump(doc, handle, ensure_ascii=False, indent=2)
             handle.write("\n")
 
-    link, json_bytes, payload_chars = build_link(args.base, doc)
+    base = args.base or DEFAULT_BASE
+    if not args.base and not args.quiet:
+        print(f"make_link: no --base given; using the demo viewer {DEFAULT_BASE}", file=sys.stderr)
+
+    link, json_bytes, payload_chars = build_link(base, doc)
     if not args.quiet:
         threads = doc.get("threads") or []
         messages = sum(len(t.get("messages") or []) for t in threads if isinstance(t, dict))

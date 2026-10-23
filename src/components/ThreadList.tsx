@@ -1,11 +1,12 @@
 import { useEffect, type KeyboardEvent } from 'react';
-import { participantSummary, summaryParticipants, threadCounterpart } from '../lib/addresses';
+import { shortName, summaryParticipants, threadCounterpart } from '../lib/addresses';
 import { threadHasFileAttachment } from '../lib/attachments';
 import { formatThreadTime } from '../lib/dates';
-import { countLabel, messageSnippet, type DirectionFilter, type ThreadFilters } from '../lib/filterThreads';
+import { FOLDERS, countLabel, messageSnippet, type DirectionFilter, type ThreadFilters } from '../lib/filterThreads';
+import { draftForThread, isStarred, isUnread, threadLabels, type LocalInboxState } from '../lib/localInboxState';
 import type { Thread } from '../types/inbox';
 import { Avatar } from './Avatar';
-import { PaperclipIcon } from './Icons';
+import { PaperclipIcon, SearchIcon, StarIcon } from './Icons';
 
 const DIRECTIONS: { id: DirectionFilter; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -19,26 +20,24 @@ export function ThreadList({
   inboxAddress,
   selectedId,
   filters,
-  tags,
+  state,
   onFilters,
   onSelect,
-  exportedLabel,
-  origin,
-  note,
-  lite,
+  onOpen,
+  onToggleStar,
+  onPalette,
 }: {
   threads: Thread[];
   total: number;
   inboxAddress: string;
   selectedId: string | null;
   filters: ThreadFilters;
-  tags: string[];
+  state: LocalInboxState;
   onFilters: (filters: ThreadFilters) => void;
   onSelect: (id: string) => void;
-  exportedLabel: string;
-  origin: string | null;
-  note: string | null;
-  lite: boolean;
+  onOpen: (id: string) => void;
+  onToggleStar: (id: string) => void;
+  onPalette: () => void;
 }) {
   useEffect(() => {
     if (!selectedId) return;
@@ -56,103 +55,145 @@ export function ThreadList({
     document.getElementById(`thread-${next.id}`)?.focus();
   }
 
-  const countText = threads.length === total ? `${total} ${total === 1 ? 'thread' : 'threads'}` : `${threads.length} of ${total}`;
+  const folderLabel = FOLDERS.find((f) => f.id === filters.folder)?.label ?? 'Inbox';
+  const scope = [filters.label, filters.tag ? `+${filters.tag}` : null].filter(Boolean).join(' · ');
+  const countText = threads.length === total ? `${total}` : `${threads.length} of ${total}`;
 
   return (
     <section className="pane list-pane" aria-label="Threads">
       <div className="list-head">
-        <div className="segment" role="radiogroup" aria-label="Direction">
-          {DIRECTIONS.map((item) => (
+        <div className="folder-strip" role="tablist" aria-label="Folders">
+          {FOLDERS.map((folder) => (
             <button
-              key={item.id}
+              key={folder.id}
               type="button"
-              role="radio"
-              aria-checked={filters.direction === item.id}
-              className={filters.direction === item.id ? 'is-on' : undefined}
-              onClick={() => onFilters({ ...filters, direction: item.id })}
+              role="tab"
+              aria-selected={filters.folder === folder.id}
+              className={filters.folder === folder.id ? 'strip-item is-on' : 'strip-item'}
+              onClick={() => onFilters({ ...filters, folder: folder.id })}
             >
-              {item.label}
+              {folder.label}
             </button>
           ))}
         </div>
-        {tags.length > 0 && (
-          <div className="tag-row" role="toolbar" aria-label="Plus-tag filter">
-            <button
-              type="button"
-              className={filters.tag == null ? 'chip is-on' : 'chip'}
-              aria-pressed={filters.tag == null}
-              onClick={() => onFilters({ ...filters, tag: null })}
-            >
-              All tags
-            </button>
-            {tags.map((tag) => (
+        <label className="search">
+          <SearchIcon />
+          <input
+            id="mail-search"
+            type="search"
+            placeholder={`Search ${folderLabel.toLowerCase()}`}
+            aria-label="Search mail"
+            value={filters.query}
+            onChange={(event) => onFilters({ ...filters, query: event.target.value })}
+          />
+          <button type="button" className="search-kbd" onClick={onPalette} aria-label="Open command palette" title="Command palette">
+            <kbd>⌘K</kbd>
+          </button>
+        </label>
+        <div className="list-sub">
+          <h2 className="list-title">
+            {folderLabel}
+            {scope && <span className="list-scope"> · {scope}</span>}
+          </h2>
+          <div className="segment" role="radiogroup" aria-label="Direction">
+            {DIRECTIONS.map((item) => (
               <button
-                key={tag}
+                key={item.id}
                 type="button"
-                className={filters.tag === tag ? 'chip is-on' : 'chip'}
-                aria-pressed={filters.tag === tag}
-                onClick={() => onFilters({ ...filters, tag })}
+                role="radio"
+                aria-checked={filters.direction === item.id}
+                className={filters.direction === item.id ? 'is-on' : undefined}
+                onClick={() => onFilters({ ...filters, direction: item.id })}
               >
-                +{tag}
+                {item.label}
               </button>
             ))}
           </div>
-        )}
-        <p className="list-count" aria-live="polite">
-          {countText}
-        </p>
+          <span className="list-count mono" aria-live="polite">
+            {countText}
+          </span>
+        </div>
       </div>
       <div className="thread-scroll" onKeyDown={onKeyDown}>
         {threads.length === 0 ? (
-          <p className="read-empty">No threads match.</p>
+          <div className="list-empty">
+            <p>Nothing here.</p>
+            <p className="fine-print">
+              {filters.query ? 'Try another search, or press ' : 'Press '}
+              <kbd>⌘K</kbd> to jump anywhere.
+            </p>
+          </div>
         ) : (
-          <div>
-            {threads.map((thread) => {
-              const active = thread.id === selectedId;
-              const latest = thread.messages[thread.messages.length - 1];
-              const who = threadCounterpart(thread, inboxAddress);
-              return (
+          threads.map((thread) => {
+            const active = thread.id === selectedId;
+            const latest = thread.messages[thread.messages.length - 1];
+            const who = threadCounterpart(thread, inboxAddress);
+            const unread = isUnread(thread, state, inboxAddress);
+            const starred = isStarred(thread.id, state);
+            const draft = draftForThread(thread.id, state);
+            const rowLabels = threadLabels(thread.id, state);
+            const people = summaryParticipants(thread, inboxAddress);
+            const senderLine = people.length <= 1 ? shortName(who) : people.map(shortName).slice(0, 3).join(', ');
+            const className = ['thread-row', active && 'is-active', unread && 'is-unread'].filter(Boolean).join(' ');
+            return (
+              <div key={thread.id} className={className}>
                 <button
-                  key={thread.id}
                   id={`thread-${thread.id}`}
                   type="button"
-                  className={active ? 'thread-row is-active' : 'thread-row'}
+                  className="thread-open"
                   aria-current={active ? 'true' : undefined}
-                  onClick={() => onSelect(thread.id)}
+                  onClick={() => onOpen(thread.id)}
                 >
+                  <span className="row-dot" aria-hidden="true" />
                   <Avatar participant={who} />
                   <span className="thread-main">
-                    <span className="subject-line">{thread.subject}</span>
-                    <span className="participants">{participantSummary(summaryParticipants(thread, inboxAddress))}</span>
-                    {latest && <span className="snippet">{messageSnippet(latest)}</span>}
-                  </span>
-                  <span className="thread-meta">
-                    <time dateTime={thread.lastMessageAt || undefined}>{formatThreadTime(thread.lastMessageAt)}</time>
-                    <span className="thread-icons">
-                      {threadHasFileAttachment(thread) && (
-                        <span className="clip" title="Has files">
-                          <PaperclipIcon />
-                          <span className="sr-only">Has files</span>
-                        </span>
-                      )}
-                      <span className="count-badge" title="Messages">
-                        {countLabel(thread)}
+                    <span className="row-top">
+                      <span className="row-sender">
+                        {senderLine}
+                        {unread && <span className="sr-only"> (unread)</span>}
+                      </span>
+                      <span className="row-right">
+                        {threadHasFileAttachment(thread) && (
+                          <span className="clip" title="Has files">
+                            <PaperclipIcon />
+                          </span>
+                        )}
+                        {thread.messages.length > 1 && <span className="row-count mono">{countLabel(thread)}</span>}
+                        <time className="row-time mono" dateTime={thread.lastMessageAt || undefined}>
+                          {formatThreadTime(thread.lastMessageAt)}
+                        </time>
                       </span>
                     </span>
+                    <span className="row-subject">{thread.subject}</span>
+                    <span className="row-snippet">
+                      {draft && <span className="draft-mark">{draft.handedToBotAt ? 'Handed to bot' : 'Draft'} · </span>}
+                      {latest ? messageSnippet(latest) : ''}
+                    </span>
+                    {rowLabels.length > 0 && (
+                      <span className="row-labels">
+                        {rowLabels.map((label) => (
+                          <span key={label} className="label-chip is-small">
+                            {label}
+                          </span>
+                        ))}
+                      </span>
+                    )}
                   </span>
                 </button>
-              );
-            })}
-          </div>
+                <button
+                  type="button"
+                  className={starred ? 'star-btn is-on' : 'star-btn'}
+                  aria-pressed={starred}
+                  aria-label={starred ? `Unstar ${thread.subject}` : `Star ${thread.subject}`}
+                  onClick={() => onToggleStar(thread.id)}
+                >
+                  <StarIcon filled={starred} />
+                </button>
+              </div>
+            );
+          })
         )}
       </div>
-      <footer className="list-foot">
-        {exportedLabel && <p>Exported {exportedLabel}</p>}
-        {origin && <p>{origin}</p>}
-        {note && <p>{note}</p>}
-        {lite && <p title="Quoted replies and inline images were left out to keep the link short.">Lite export</p>}
-        <p className="local-only">Stays in this browser.</p>
-      </footer>
     </section>
   );
 }

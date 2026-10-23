@@ -13,8 +13,9 @@ function sampleInboxPlugin(): Plugin {
     name: 'sample-inbox',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        const path = req.url?.split('?')[0] ?? '';
-        if (path.endsWith('/sample-inbox.json')) {
+        const [path, query = ''] = (req.url ?? '').split('?');
+        // Serve the public download only; Vite's own `?import` module request must pass through.
+        if (path.endsWith('/sample-inbox.json') && !path.includes('/examples/') && !/(^|&)import(=|&|$)/.test(query)) {
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.setHeader('Cache-Control', 'no-cache');
           res.end(load());
@@ -33,8 +34,9 @@ function sampleInboxPlugin(): Plugin {
   };
 }
 
-// The site lives at the root of inbox.mascaro.eu. Set VITE_BASE_PATH
-// (for example "/grokbot-inbox/") to build for a sub-path instead.
+// The site is served from a domain root (Vercel). Set VITE_BASE_PATH
+// (for example "/grokbot-inbox/") to build for a sub-path such as a
+// GitHub Pages project site.
 const base = normalizeBase(process.env.VITE_BASE_PATH ?? '/');
 
 function normalizeBase(value: string): string {
@@ -48,6 +50,11 @@ export default defineConfig({
   plugins: [react(), sampleInboxPlugin()],
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'api/**/*.test.ts', 'bot/**/*.test.ts'],
+    // The relay function and the bot's encrypt script are plain Node.
+    environmentMatchGlobs: [
+      ['api/**', 'node'],
+      ['bot/**', 'node'],
+    ],
   },
 });

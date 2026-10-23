@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatExportTime, formatMessageTime, formatThreadTime } from './dates';
+import { formatExportTime, formatMessageTime, formatRelativeTime, formatThreadTime } from './dates';
 
 describe('dates', () => {
   const iso = '2026-10-23T13:40:00Z';
@@ -19,5 +19,15 @@ describe('dates', () => {
   it('returns the original string when the timestamp is not a date', () => {
     expect(formatMessageTime('not-a-date')).toBe('not-a-date');
     expect(formatExportTime('')).toBe('');
+  });
+
+  it('formats relative "updated X ago" labels', () => {
+    const now = new Date(iso);
+    const ago = (seconds: number) => new Date(now.getTime() - seconds * 1000).toISOString();
+    expect(formatRelativeTime(ago(10), now)).toBe('just now');
+    expect(formatRelativeTime(ago(4 * 60), now)).toBe('4 min ago');
+    expect(formatRelativeTime(ago(2 * 3600), now)).toBe('2 h ago');
+    expect(formatRelativeTime(ago(3 * 86400), now)).toBe('3 d ago');
+    expect(formatRelativeTime('garbage', now)).toBe('');
   });
 });

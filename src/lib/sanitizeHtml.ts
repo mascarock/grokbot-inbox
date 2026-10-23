@@ -16,18 +16,18 @@ export const EMAIL_IFRAME_SANDBOX = 'allow-same-origin allow-popups allow-popups
 
 const FRAME_COLORS = {
   light: {
-    fg: '#1c1917',
-    muted: '#675d56',
-    link: '#9a3f14',
-    border: '#e4d9d0',
-    chip: '#f7f1eb',
+    fg: '#111113',
+    muted: '#5c5c66',
+    link: '#111113',
+    border: '#e4e4e7',
+    chip: '#f4f4f5',
   },
   dark: {
-    fg: '#f6f1ec',
-    muted: '#b3a59b',
-    link: '#f0a06a',
-    border: '#3a322c',
-    chip: '#26211d',
+    fg: '#fafafa',
+    muted: '#9a9aa3',
+    link: '#fafafa',
+    border: '#2a2a2e',
+    chip: '#19191c',
   },
 } as const;
 
@@ -106,11 +106,11 @@ export function buildEmailSrcDoc(html: string, options: EmailFrameOptions): stri
     padding: 0;
     background: transparent;
     color: ${colors.fg};
-    font: 15px/1.55 Inter, "Segoe UI", system-ui, sans-serif;
+    font: 15px/1.6 Inter, Geist, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     overflow-wrap: anywhere;
   }
   img, video { max-width: 100%; height: auto; }
-  a { color: ${colors.link}; }
+  a { color: ${colors.link}; text-decoration: underline; text-underline-offset: 2px; }
   blockquote {
     margin: 0.6em 0;
     padding-left: 0.8em;

@@ -26,6 +26,16 @@
       "additionalProperties": true,
       "description": "Optional exporter metadata. The viewer does not require a fixed shape."
     },
+    "relay": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Optional prefill for the viewer's webhook settings (URL and header shape, never the key). See docs/RELAY.md.",
+      "properties": {
+        "webhookUrl": { "type": "string", "format": "uri" },
+        "keyHeader": { "type": "string" },
+        "keyPrefix": { "type": "string" }
+      }
+    },
     "threads": {
       "type": "array",
       "items": { "$ref": "#/$defs/thread" }

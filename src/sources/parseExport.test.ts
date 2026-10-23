@@ -163,6 +163,13 @@ describe('parseInboxExport', () => {
     });
     expect(parseInboxExport({ ...minimal, source: ['nope'] }).source).toBeUndefined();
   });
+
+  it('keeps a relay prefill block, dropping junk and never a key', () => {
+    const relay = { webhookUrl: ' https://grok.com/routines/r/webhook ', keyHeader: 'X-Api-Key', keyPrefix: '', key: 'must-not-survive', extra: 1 };
+    expect(parseInboxExport({ ...minimal, relay }).relay).toEqual({ webhookUrl: 'https://grok.com/routines/r/webhook', keyHeader: 'X-Api-Key', keyPrefix: '' });
+    expect(parseInboxExport({ ...minimal, relay: {} }).relay).toBeUndefined();
+    expect(parseInboxExport({ ...minimal, relay: 'https://grok.com' }).relay).toBeUndefined();
+  });
 });
 
 describe('sources', () => {

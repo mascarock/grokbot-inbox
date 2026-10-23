@@ -15,11 +15,16 @@ Sources live behind a small adapter interface, `InboxSource`, in [`src/sources/t
 
 `load()` returns an `InboxExport`. The thread list and thread view depend only on that type.
 
+The viewer is also an inbox, not just a reader, while staying static:
+
+- **Local state** (`src/lib/localInboxState.ts`): read marks, stars, archive, free-text labels, and drafts in `localStorage`, keyed per inbox address and thread id. The export is never modified.
+- **Compose** (`src/lib/compose.ts`, `src/components/ComposeView.tsx`): reply, reply all, forward, new message. Output is a `/inbox-send v1` text block ([COMMANDS.md](COMMANDS.md)) that the owner pastes to their bot; the bot shows a draft card and sends on confirmation. The page never sends.
+- **Refresh** is `/inbox-refresh v1`, also pasted to the bot, which answers with a new link. The link is the sync.
+
 ## Next
 
 Things that stay inside the no-backend design:
 
-- **Refresh from the bot.** Ask the bot again and open the new link. There is no sync to build; the link is the sync.
 - **Bigger inboxes.** Links are capped near 2 MB by Chromium (see [LINK.md](LINK.md)). A `mode: "lite"` export already helps. A follow-up could let the bot split one inbox into several per-tag links.
 - **Attachments.** The export carries metadata, not bytes. A `url` is allowed when the bot has a safe place to serve a file. Nothing in the viewer fetches a URL without a click.
 - **Other mail sources.** Anything that can produce the JSON can use the viewer, with or without the link script.
