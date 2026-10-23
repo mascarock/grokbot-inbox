@@ -43,7 +43,7 @@ describe.each([
     const result = run(runtime, [script, samplePath, '--quiet']);
     expect(result.status, result.stderr).toBe(0);
     const link = result.stdout.trim();
-    expect(link.startsWith('https://grok-bot-inbox.vercel.app/#data=')).toBe(true);
+    expect(link.startsWith('https://grokbot-inbox-mascarock.vercel.app/#data=')).toBe(true);
     expect(link).toMatch(/^[^\s]+$/);
     const inbox = await openLink(link);
     expect(inbox).toEqual(expected);
@@ -98,7 +98,7 @@ describe.each([
 describe('README demo link', () => {
   it('opens the fictional sample', async () => {
     const readme = readFileSync(resolve(root, 'README.md'), 'utf8');
-    const match = readme.match(/https:\/\/grok-bot-inbox\.vercel\.app\/#data=[A-Za-z0-9_-]+/);
+    const match = readme.match(/https:\/\/grokbot-inbox-mascarock\.vercel\.app\/#data=[A-Za-z0-9_-]+/);
     expect(match, 'README has a demo link').toBeTruthy();
     const inbox = await openLink(match?.[0] ?? '');
     expect(inbox).toEqual(expected);

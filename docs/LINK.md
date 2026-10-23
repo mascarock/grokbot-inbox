@@ -3,12 +3,14 @@
 A viewer link carries a whole inbox export inside the URL fragment:
 
 ```text
-https://grok-bot-inbox.vercel.app/#data=<payload>
+https://grokbot-inbox-<handle>.vercel.app/#data=<payload>
 ```
 
-Browsers never send the fragment (the part after `#`) to the server. The host (Vercel, or GitHub Pages for a self-hosted copy) receives a request for `/` and nothing else. The page decodes the payload in JavaScript, renders it, and then removes the fragment from the address bar with `history.replaceState`, so the data is not left in a bookmark, the history list, or a copied URL. The inbox is kept in memory and in `sessionStorage` for that tab only, so a reload still works. **Forget** in the banner clears it.
+`<handle>` is the owner's inbox handle: every person's bot deploys its own copy of the viewer, so the host differs per person. The scripts take the host as `--base`.
 
-`tools/make_link.py` (Python 3, standard library only) and `tools/make_link.mjs` (Node) produce these links.
+Browsers never send the fragment (the part after `#`) to the server. The host (the owner's own Vercel project, or GitHub Pages for a self-hosted copy) receives a request for `/` and nothing else. The page decodes the payload in JavaScript, renders it, and then removes the fragment from the address bar with `history.replaceState`, so the data is not left in a bookmark, the history list, or a copied URL. The inbox is kept in memory and in `sessionStorage` for that tab only, so a reload still works. **Forget** in the banner clears it.
+
+`tools/make_link.py` (Python 3, standard library only) and `tools/make_link.mjs` (Node) produce these links. Pass `--base https://grokbot-inbox-<handle>.vercel.app/` with the owner's own deployment. Without `--base` the scripts print a warning and fall back to the demo copy `https://grokbot-inbox-mascarock.vercel.app/`, which exists for the README demo link and is not a shared service.
 
 ## Encoding
 

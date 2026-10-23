@@ -1,14 +1,16 @@
 #!/usr/bin/env node
 // Node equivalent of make_link.py. No dependencies beyond node:zlib.
 //
-//   node make_link.mjs export.json [--lite] [--base URL] [--max-chars N] [--write-json PATH] [--quiet]
+//   node make_link.mjs export.json --base https://grokbot-inbox-<handle>.vercel.app/ [--lite] [--max-chars N] [--write-json PATH] [--quiet]
 //
 // Output and exit codes match the Python script. See docs/LINK.md.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { deflateRawSync } from 'node:zlib';
 
-const DEFAULT_BASE = 'https://grok-bot-inbox.vercel.app/';
+// There is no central viewer. Each bot deploys its owner's own copy and must
+// pass --base <that URL>. This default is the demo/fallback deployment only.
+const DEFAULT_BASE = 'https://grokbot-inbox-mascarock.vercel.app/';
 const DEFAULT_MAX_CHARS = 1_900_000;
 
 const QUOTE_START = /^On .+ wrote:\s*$/i;
@@ -111,7 +113,7 @@ function loadExport(path) {
 }
 
 function parseArgs(argv) {
-  const args = { export: null, lite: false, base: DEFAULT_BASE, maxChars: DEFAULT_MAX_CHARS, writeJson: null, quiet: false };
+  const args = { export: null, lite: false, base: null, maxChars: DEFAULT_MAX_CHARS, writeJson: null, quiet: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--lite') args.lite = true;
@@ -140,7 +142,9 @@ function main() {
   }
   if (args.lite) doc = makeLite(doc);
   if (args.writeJson) writeFileSync(args.writeJson, `${JSON.stringify(doc, null, 2)}\n`);
-  const { link, jsonBytes, payloadChars } = buildLink(args.base, doc);
+  const base = args.base || DEFAULT_BASE;
+  if (!args.base && !args.quiet) console.error(`make_link: no --base given; using the demo viewer ${DEFAULT_BASE}`);
+  const { link, jsonBytes, payloadChars } = buildLink(base, doc);
   if (!args.quiet) {
     const messages = doc.threads.reduce((n, t) => n + (Array.isArray(t.messages) ? t.messages.length : 0), 0);
     console.error(

@@ -1,0 +1,65 @@
+name: Publish dist release
+
+# Builds the viewer and attaches dist.tar.gz to a rolling "latest" GitHub
+# release. A bot whose Vercel account has no GitHub connection downloads it
+# from https://github.com/mascarock/grokbot-inbox/releases/latest/download/dist.tar.gz
+# and deploys the files inline. See bot/SKILL.md.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-dist
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build for the domain root
+        env:
+          VITE_BASE_PATH: /
+        run: npm run build
+
+      - name: Pack dist
+        run: |
+          tar -czf dist.tar.gz -C dist .
+          sha256sum dist.tar.gz | tee dist.tar.gz.sha256
+          printf '{"commit":"%s","builtAt":"%s"}\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist-manifest.json
+
+      - name: Move the latest tag to this commit
+        run: |
+          git tag -f latest
+          git push -f origin latest
+
+      - name: Publish the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="Prebuilt viewer from commit ${GITHUB_SHA}. Extract dist.tar.gz and serve the files from a domain root."
+          if gh release view latest >/dev/null 2>&1; then
+            gh release edit latest --title "Latest build" --notes "$notes" --prerelease=false
+          else
+            gh release create latest --title "Latest build" --notes "$notes"
+          fi
+          gh release upload latest dist.tar.gz dist.tar.gz.sha256 dist-manifest.json --clobber
