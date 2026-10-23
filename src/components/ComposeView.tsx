@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { canShare, copyText, shareText } from '../lib/clipboard';
 import { CommandError, formatSendCommand, parseRecipients } from '../lib/command';
 import { draftBody, type Draft } from '../lib/compose';
-import { CloseIcon } from './Icons';
+import { CloseIcon, CopyIcon, MaximizeIcon, MinimizeIcon, ShareIcon, TrashIcon } from './Icons';
 
 const TITLES: Record<Draft['kind'], string> = {
   new: 'New message',
@@ -31,6 +31,7 @@ export function ComposeView({
   const toRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [showCommand, setShowCommand] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const needsTo = draft.kind === 'forward' || draft.kind === 'new';
@@ -71,35 +72,51 @@ export function ComposeView({
       return;
     }
     const ok =
-      mode === 'share'
-        ? await shareText(`Send with my bot: ${draft.subject}`, command.text)
-        : await copyText(command.text);
+      mode === 'share' ? await shareText(`Send with my bot: ${draft.subject}`, command.text) : await copyText(command.text);
     if (!ok) {
       setShowCommand(true);
-      onToast(mode === 'share' ? 'Sharing was cancelled. Copy the block instead.' : 'Could not copy. Select the block below and copy it.', 'error');
+      onToast(
+        mode === 'share' ? 'Sharing was cancelled. Copy the block instead.' : 'Could not copy. Select the block below and copy it.',
+        'error',
+      );
       return;
     }
     onHanded({ ...draft, handedToBotAt: new Date().toISOString() });
     onToast(mode === 'share' ? 'Shared. Paste it in your bot chat.' : 'Copied, paste it in your bot chat');
   }
 
+  const problem = error ?? (!command.text && (draft.body || draft.to) ? command.problem : null);
+
   return (
-    <section className="compose" aria-label={TITLES[draft.kind]}>
+    <section className={expanded ? 'compose is-expanded' : 'compose'} aria-label={TITLES[draft.kind]}>
       <form className="compose-card" onSubmit={(event) => void handToBot('copy', event)}>
         <header className="compose-head">
-          <div>
+          <div className="compose-title">
             <h2>{TITLES[draft.kind]}</h2>
-            <p className="compose-sub">
-              from <span className="mono">{inboxAddress}</span>
-              {draft.handedToBotAt && <span className="handed-pill">Handed to bot</span>}
-            </p>
+            {draft.handedToBotAt && <span className="handed-pill">Handed to bot</span>}
           </div>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close compose (draft is kept)">
-            <CloseIcon />
-          </button>
+          <div className="compose-head-tools">
+            <button
+              type="button"
+              className="icon-btn is-small"
+              onClick={() => setExpanded((v) => !v)}
+              aria-pressed={expanded}
+              aria-label={expanded ? 'Shrink compose' : 'Expand compose'}
+              title={expanded ? 'Shrink' : 'Expand'}
+            >
+              {expanded ? <MinimizeIcon /> : <MaximizeIcon />}
+            </button>
+            <button type="button" className="icon-btn is-small" onClick={onClose} aria-label="Close compose (draft is kept)" title="Close (Esc)">
+              <CloseIcon />
+            </button>
+          </div>
         </header>
 
         <div className="compose-fields">
+          <div className="field is-static">
+            <span>From</span>
+            <span className="mono field-static">{inboxAddress}</span>
+          </div>
           <label className="field">
             <span>To</span>
             <input
@@ -115,14 +132,7 @@ export function ComposeView({
           </label>
           <label className="field">
             <span>Cc</span>
-            <input
-              type="text"
-              inputMode="email"
-              autoComplete="off"
-              spellCheck={false}
-              value={draft.cc}
-              onChange={(event) => update({ cc: event.target.value })}
-            />
+            <input type="text" inputMode="email" autoComplete="off" spellCheck={false} value={draft.cc} onChange={(event) => update({ cc: event.target.value })} />
           </label>
           <label className="field">
             <span>Subject</span>
@@ -133,63 +143,54 @@ export function ComposeView({
             className="compose-body"
             placeholder="Write your message"
             value={draft.body}
-            rows={8}
+            rows={expanded ? 16 : 8}
             onChange={(event) => update({ body: event.target.value })}
           />
           {draft.quoted && (
             <details className="quoted-draft">
               <summary>
                 <label onClick={(event) => event.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    checked={draft.includeQuote}
-                    onChange={(event) => update({ includeQuote: event.target.checked })}
-                  />{' '}
+                  <input type="checkbox" checked={draft.includeQuote} onChange={(event) => update({ includeQuote: event.target.checked })} />{' '}
                   Include the {draft.kind === 'forward' ? 'forwarded message' : 'quoted original'}
                 </label>
               </summary>
-              <textarea
-                className="compose-quote"
-                aria-label="Quoted original"
-                value={draft.quoted}
-                rows={6}
-                onChange={(event) => update({ quoted: event.target.value })}
-              />
+              <textarea className="compose-quote" aria-label="Quoted original" value={draft.quoted} rows={6} onChange={(event) => update({ quoted: event.target.value })} />
             </details>
           )}
         </div>
 
-        {(error || (!command.text && (draft.body || draft.to))) && (
+        {problem && (
           <p className="compose-problem" role="status">
-            {error ?? command.problem}
+            {problem}
           </p>
+        )}
+
+        {showCommand && (
+          <pre className="command-preview mono" tabIndex={0} aria-label="Command block">
+            {command.text ?? `Fix the draft first: ${command.problem}`}
+          </pre>
         )}
 
         <footer className="compose-foot">
           <button type="submit" className="btn btn-primary">
+            <CopyIcon />
             Send with my bot
           </button>
           {canShare() && (
             <button type="button" className="btn" onClick={() => void handToBot('share')}>
+              <ShareIcon />
               Share
             </button>
           )}
-          <button type="button" className="btn btn-quiet" onClick={() => setShowCommand((v) => !v)}>
+          <button type="button" className="btn btn-quiet" onClick={() => setShowCommand((v) => !v)} aria-pressed={showCommand}>
             {showCommand ? 'Hide command' : 'Show command'}
           </button>
           <span className="compose-spacer" />
-          <button type="button" className="btn btn-quiet" onClick={onDiscard}>
-            Discard
+          <button type="button" className="icon-btn is-small" onClick={onDiscard} aria-label="Discard draft" title="Discard draft">
+            <TrashIcon />
           </button>
         </footer>
-        <p className="fine-print compose-note">
-          The viewer never sends mail. Paste the block in your Grok Bot chat; the bot shows a draft card you confirm.
-        </p>
-        {showCommand && (
-          <pre className="command-preview" tabIndex={0} aria-label="Command block">
-            {command.text ?? `Fix the draft first: ${command.problem}`}
-          </pre>
-        )}
+        <p className="compose-note">The viewer never sends mail. Paste the block in your Grok Bot chat; the bot shows a draft card you confirm.</p>
       </form>
     </section>
   );

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { CloseIcon } from './Icons';
 
 export const SHORTCUTS: { keys: string[]; label: string }[] = [
+  { keys: ['⌘K'], label: 'Command palette' },
   { keys: ['j', 'k'], label: 'Next / previous thread' },
   { keys: ['Enter'], label: 'Open the selected thread (mobile)' },
   { keys: ['r'], label: 'Reply to the latest message' },
@@ -12,7 +13,7 @@ export const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ['s'], label: 'Star / unstar' },
   { keys: ['u'], label: 'Mark unread' },
   { keys: ['/'], label: 'Search' },
-  { keys: ['Esc'], label: 'Close compose or this help' },
+  { keys: ['Esc'], label: 'Close compose, palette, or this help' },
   { keys: ['?'], label: 'This cheatsheet' },
 ];
 
@@ -21,13 +22,13 @@ export function ShortcutsModal({ onClose }: { onClose: () => void }) {
   useEffect(() => closeRef.current?.focus(), []);
 
   return (
-    <div className="modal-layer" onClick={onClose}>
+    <div className="modal-layer" onMouseDown={onClose}>
       <div
         className="modal-card"
         role="dialog"
         aria-modal="true"
         aria-labelledby="shortcuts-title"
-        onClick={(event) => event.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
       >
         <header className="modal-head">
           <h2 id="shortcuts-title">Keyboard shortcuts</h2>
@@ -50,7 +51,7 @@ export function ShortcutsModal({ onClose }: { onClose: () => void }) {
             </div>
           ))}
         </dl>
-        <p className="fine-print">Shortcuts pause while you type in a field.</p>
+        <p className="fine-print">Shortcuts pause while you type in a field. ⌘ is Ctrl on Windows and Linux.</p>
       </div>
     </div>
   );

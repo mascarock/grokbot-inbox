@@ -44,7 +44,7 @@ The layout follows a mail client: a thread list and a reading pane.
 - Plain text is linkified. A trailing quoted reply is collapsed.
 - HTML is treated as untrusted: it is sanitized with DOMPurify and shown in a sandboxed frame. Scripts do not run. Remote images stay blocked until you turn them on for that message.
 - Inline images (`inline: true`, usually signatures) are hidden until you show them.
-- Light and dark follow your system until you toggle them.
+- Dark by default; light when your system prefers it or when you toggle it.
 
 ## Reply, and other things an inbox does
 
@@ -75,9 +75,11 @@ Paste it into your bot chat. The bot parses it, checks the `from` address is one
 
 **Read, star, archive, label.** Opening a thread marks it read; a thread turns unread again when a later export has a newer message in it. Stars, archive, and free-text labels are per inbox in `localStorage`. The folders **Inbox / Unread / Starred / Archived** sit above the list, next to the direction, plus-tag, and label filters; search works inside any of them. None of this changes the mailbox itself.
 
-**Keyboard.** `j` / `k` next and previous thread, `Enter` opens it on a phone, `r` reply, `a` reply all, `f` forward, `c` compose, `e` archive, `s` star, `u` mark unread, `/` search, `Esc` closes, `?` shows the cheatsheet.
+**Keyboard.** `⌘K` / `Ctrl+K` opens a command palette: fuzzy-search actions, folders, labels, addresses, and threads, or press Enter on "Search mail for…". `j` / `k` next and previous thread, `Enter` opens it on a phone, `r` reply, `a` reply all, `f` forward, `c` compose, `e` archive, `s` star, `u` mark unread, `/` search, `Esc` closes, `?` shows the cheatsheet.
 
-**Phones.** The layout flows list → thread → compose, one screen at a time, with a back link at each step.
+**Look.** Three panes: a slim sidebar with folders, labels, and plus-addresses; a dense thread list; a reading pane with a comfortable measure. Dark by default, light if your system asks for it, and a toggle that remembers your choice. Monochrome, one hairline border weight, system fonts only (Inter or Geist when installed, otherwise your platform's sans; a monospace stack for addresses, dates, ids, and the command block). No font or icon CDN is contacted; icons are inline SVG.
+
+**Phones.** The layout flows list → thread → compose, one screen at a time, with a back link at each step. Compose is a floating, expandable panel on desktop and full screen on phones.
 
 ## Privacy, concretely
 
