@@ -47,6 +47,7 @@ jobs:
         # without framework or build settings. package.json only sets
         # "type": "module" so api/relay.js runs as ESM.
         run: |
+          rm -f dist/.nojekyll
           mkdir -p dist/api
           cp api/relay.js dist/api/relay.js
           node -e '
