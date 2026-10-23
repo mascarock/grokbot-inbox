@@ -47,6 +47,10 @@ export function parseInboxExport(input: unknown): InboxExport {
     .sort(compareThreadsDesc);
 
   const result: InboxExport = { inbox, exportedAt, threads };
+  if (typeof raw.mode === 'string') {
+    const mode = raw.mode.trim().toLowerCase();
+    if (mode === 'lite' || mode === 'full') result.mode = mode;
+  }
   if (raw.source && typeof raw.source === 'object' && !Array.isArray(raw.source)) {
     result.source = raw.source as Record<string, unknown>;
   }

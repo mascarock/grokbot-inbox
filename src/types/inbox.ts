@@ -54,11 +54,19 @@ export interface Thread {
   messages: Message[];
 }
 
+/**
+ * `lite` exports leave out quoted replies, HTML bodies, inline images, and
+ * attachment bytes so the export fits in a viewer link. See docs/LINK.md.
+ */
+export type ExportMode = 'full' | 'lite';
+
 export interface InboxExport {
   inbox: string;
   /** ISO-8601 timestamp of the export. Empty if the file omitted it. */
   exportedAt: string;
   threads: Thread[];
+  /** Omitted means full. */
+  mode?: ExportMode;
   /** Exporter metadata. The viewer does not require a particular shape. */
   source?: Record<string, unknown>;
 }

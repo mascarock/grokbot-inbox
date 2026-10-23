@@ -13,6 +13,7 @@ The published contract is [`schema/inbox.schema.json`](../schema/inbox.schema.js
 | `inbox` | yes | Mailbox that was read, for example `name+roma@mail.grokbot.com`. |
 | `exportedAt` | yes | ISO-8601 timestamp of the export. |
 | `threads` | yes | Array of threads. May be empty. |
+| `mode` | no | `full` (default) or `lite`. See [Lite exports](#lite-exports). |
 | `source` | no | Free-form object for exporter metadata (`via`, `readOnly`, `note`, …). |
 
 ## Thread
@@ -103,6 +104,19 @@ Real exports often have `text` and no `html`. The viewer renders HTML only when 
 }
 ```
 
+## Lite exports
+
+An export usually travels inside a viewer link (see [LINK.md](LINK.md)), and links have a size ceiling. A lite export is the same schema with the bulk removed, and `"mode": "lite"` set at the top level:
+
+| Change | Why |
+| --- | --- |
+| A trailing quoted reply is cut from `text` | The earlier message is already in the thread. |
+| `html` is dropped; HTML-only messages are converted to plain text | HTML is many times the size of the words in it. |
+| Attachments with `inline: true` are dropped | Signature images repeat in every message. |
+| `url` is dropped from the remaining attachments | `data:` URLs carry the whole file. |
+
+Nothing else changes: participants, dates, subjects, direction, counts, file names, sizes. `tools/make_link.py --lite` applies this to a full export. A producer may also write a lite export directly. The viewer shows "Lite export" in the thread-list footer when `mode` is `lite`.
+
 ## Viewer tolerance
 
 The schema describes what a careful export includes. The parser in `src/sources/parseExport.ts` is looser, because a bot may omit a field:
@@ -113,6 +127,7 @@ The schema describes what a careful export includes. The parser in `src/sources/
 - `direction` must be `sent` or `received` (any letter case). Anything else is ignored. A missing direction is shown as received.
 - `messageCount` is kept when it is a number, including when it is larger than the messages in the file.
 - Missing `inline` means the attachment is a file, not an inline image.
+- `mode` must be `full` or `lite` (any letter case). Anything else is ignored, which means full.
 - A missing `size` is shown as `0`. Negative sizes are treated as `0`.
 - If `inbox` or `exportedAt` is missing but `threads` is an array, the file still opens. `inbox` falls back to `Unknown inbox`.
 - If the whole file is wrapped in a Markdown fence, or has a short note before the JSON object, the parser tries to recover the object.

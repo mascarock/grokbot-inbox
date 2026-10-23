@@ -16,6 +16,7 @@ export function App() {
   const {
     inbox,
     origin,
+    sourceKind,
     error,
     loading,
     dragging,
@@ -27,6 +28,7 @@ export function App() {
     inlineOpen,
     openFile,
     openSample,
+    forget,
     dismissError,
     toggleRemote,
     toggleInline,
@@ -123,6 +125,19 @@ export function App() {
         />
       </header>
 
+      {inbox && sourceKind === 'link' && (
+        <div className="privacy-banner" role="status">
+          <p>
+            <strong>This inbox is loaded only in your browser.</strong> It came from the link's <code>#data</code>{' '}
+            fragment, which is never sent to a server. The fragment was removed from the address bar and the inbox is
+            remembered in this tab only.
+          </p>
+          <button type="button" className="btn" onClick={forget}>
+            Forget
+          </button>
+        </div>
+      )}
+
       {inbox ? (
         <div className="workspace" id="mailbox" data-show={narrow ? pane : 'both'}>
           <ThreadList
@@ -140,6 +155,7 @@ export function App() {
             exportedLabel={formatExportTime(inbox.exportedAt)}
             origin={origin}
             note={sourceNote(inbox)}
+            lite={inbox.mode === 'lite'}
           />
           <section className="pane read-pane" aria-label="Conversation">
             {selected ? (

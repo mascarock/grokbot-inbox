@@ -3,8 +3,8 @@ import type { InboxSource } from './types';
 
 /**
  * Load an export from a URL the browser can read.
- * Credentials are omitted: this is not a signed-in backend call.
- * A future remote source (docs/ROADMAP.md) would be a separate adapter.
+ * Credentials are omitted. Unlike `#data=`, a query string is sent to the
+ * server that hosts the page, so prefer the link source for mail.
  */
 export function createUrlSource(url: string): InboxSource {
   const trimmed = url.trim();

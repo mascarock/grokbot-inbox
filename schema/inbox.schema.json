@@ -17,6 +17,10 @@
       "format": "date-time",
       "description": "When the export was produced, ISO-8601."
     },
+    "mode": {
+      "enum": ["full", "lite"],
+      "description": "Omitted means full. A lite export leaves out quoted replies, HTML bodies, inline images, and attachment bytes so it fits in a viewer link. See docs/LINK.md."
+    },
     "source": {
       "type": "object",
       "additionalProperties": true,

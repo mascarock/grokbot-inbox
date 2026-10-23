@@ -3,9 +3,9 @@ import type { InboxExport } from '../types/inbox';
 /**
  * One way to obtain an inbox export.
  *
- * The thread UI depends only on {@link InboxExport}. v1 provides file, URL,
- * and sample sources. A future signed-in backend implements this same
- * interface (see docs/ROADMAP.md) and does not need its own renderer.
+ * The thread UI depends only on {@link InboxExport}. v1 provides link
+ * (`#data=`), file, URL, and sample sources. Anything else that can produce
+ * an export implements this same interface and needs no renderer of its own.
  */
 export interface InboxSource {
   /** Stable kind, for example "file", "url", "sample", or a future "remote". */

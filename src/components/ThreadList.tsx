@@ -25,6 +25,7 @@ export function ThreadList({
   exportedLabel,
   origin,
   note,
+  lite,
 }: {
   threads: Thread[];
   total: number;
@@ -37,6 +38,7 @@ export function ThreadList({
   exportedLabel: string;
   origin: string | null;
   note: string | null;
+  lite: boolean;
 }) {
   useEffect(() => {
     if (!selectedId) return;
@@ -148,6 +150,7 @@ export function ThreadList({
         {exportedLabel && <p>Exported {exportedLabel}</p>}
         {origin && <p>{origin}</p>}
         {note && <p>{note}</p>}
+        {lite && <p title="Quoted replies and inline images were left out to keep the link short.">Lite export</p>}
         <p className="local-only">Stays in this browser.</p>
       </footer>
     </section>
