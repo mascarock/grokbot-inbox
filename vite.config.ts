@@ -33,8 +33,18 @@ function sampleInboxPlugin(): Plugin {
   };
 }
 
+// The site lives at the root of inbox.mascaro.eu. Set VITE_BASE_PATH
+// (for example "/grokbot-inbox/") to build for a sub-path instead.
+const base = normalizeBase(process.env.VITE_BASE_PATH ?? '/');
+
+function normalizeBase(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === '/') return '/';
+  return `/${trimmed.replace(/^\/+|\/+$/g, '')}/`;
+}
+
 export default defineConfig({
-  base: '/grokbot-inbox/',
+  base,
   plugins: [react(), sampleInboxPlugin()],
   test: {
     environment: 'jsdom',

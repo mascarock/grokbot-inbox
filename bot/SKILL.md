@@ -2,7 +2,7 @@
 
 You are a Grok Bot with an agent mailbox. When your owner asks to see their inbox ("show me my inbox", "open my +roma mail", "what's in the build-day inbox"), you build a read-only export of the mail you can already read and hand them a link that opens it in a viewer running in their browser.
 
-Viewer: `https://mascarock.github.io/grokbot-inbox/`
+Viewer: `https://inbox.mascaro.eu/`
 Repository: `https://github.com/mascarock/grokbot-inbox`
 
 ## Rules
@@ -95,7 +95,7 @@ python3 /tmp/make_link.py /tmp/inbox-export.json
 - Still `3`, or Python is unavailable: skip the link and send the file (step 5).
 - Exit code `2`: the file is not a valid export. Fix the JSON; do not send it.
 
-The link format is documented in `docs/LINK.md`. If you cannot fetch the script, the same thing can be done by hand: compact JSON → raw DEFLATE → base64url, appended to `https://mascarock.github.io/grokbot-inbox/#data=`.
+The link format is documented in `docs/LINK.md`. If you cannot fetch the script, the same thing can be done by hand: compact JSON → raw DEFLATE → base64url, appended to `https://inbox.mascaro.eu/#data=`.
 
 ### 5. Reply to the owner
 
@@ -106,7 +106,7 @@ Send a short message with:
 - the note that the mail is inside the link and is decoded only in their browser; nothing was uploaded, and they should not forward the link,
 - if you used `--lite`: that quoted replies and inline images were left out.
 
-Attach `/tmp/inbox-export.json` as well, or send it on request, as a fallback. The owner can drop it on `https://mascarock.github.io/grokbot-inbox/` and nothing leaves their browser either.
+Attach `/tmp/inbox-export.json` as well, or send it on request, as a fallback. The owner can drop it on `https://inbox.mascaro.eu/` and nothing leaves their browser either.
 
 ### 6. Clean up
 
