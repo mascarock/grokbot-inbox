@@ -38,6 +38,10 @@ jobs:
         run: npm test
 
       - name: Build
+        # Empty means "/" (domain root). Set the VITE_BASE_PATH repository
+        # variable, e.g. /grokbot-inbox/, for a GitHub Pages project site.
+        env:
+          VITE_BASE_PATH: ${{ vars.VITE_BASE_PATH }}
         run: npm run build
 
       - name: Upload Pages artifact

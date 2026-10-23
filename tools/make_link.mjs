@@ -8,7 +8,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { deflateRawSync } from 'node:zlib';
 
-const DEFAULT_BASE = 'https://inbox.mascaro.eu/';
+const DEFAULT_BASE = 'https://grok-bot-inbox.vercel.app/';
 const DEFAULT_MAX_CHARS = 1_900_000;
 
 const QUOTE_START = /^On .+ wrote:\s*$/i;

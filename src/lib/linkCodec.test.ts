@@ -23,7 +23,7 @@ describe('link codec', () => {
   });
 
   it('builds a fragment link and reads it back', () => {
-    const link = buildInboxLink('https://inbox.mascaro.eu/', json);
+    const link = buildInboxLink('https://grok-bot-inbox.vercel.app/', json);
     const url = new URL(link);
     expect(url.search).toBe('');
     expect(url.hash.startsWith('#data=')).toBe(true);

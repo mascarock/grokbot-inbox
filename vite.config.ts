@@ -33,8 +33,9 @@ function sampleInboxPlugin(): Plugin {
   };
 }
 
-// The site lives at the root of inbox.mascaro.eu. Set VITE_BASE_PATH
-// (for example "/grokbot-inbox/") to build for a sub-path instead.
+// The site is served from a domain root (Vercel). Set VITE_BASE_PATH
+// (for example "/grokbot-inbox/") to build for a sub-path such as a
+// GitHub Pages project site.
 const base = normalizeBase(process.env.VITE_BASE_PATH ?? '/');
 
 function normalizeBase(value: string): string {

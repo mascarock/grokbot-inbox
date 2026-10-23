@@ -3,10 +3,10 @@
 A viewer link carries a whole inbox export inside the URL fragment:
 
 ```text
-https://inbox.mascaro.eu/#data=<payload>
+https://grok-bot-inbox.vercel.app/#data=<payload>
 ```
 
-Browsers never send the fragment (the part after `#`) to the server. GitHub Pages receives a request for `/` and nothing else. The page decodes the payload in JavaScript, renders it, and then removes the fragment from the address bar with `history.replaceState`, so the data is not left in a bookmark, the history list, or a copied URL. The inbox is kept in memory and in `sessionStorage` for that tab only, so a reload still works. **Forget** in the banner clears it.
+Browsers never send the fragment (the part after `#`) to the server. The host (Vercel, or GitHub Pages for a self-hosted copy) receives a request for `/` and nothing else. The page decodes the payload in JavaScript, renders it, and then removes the fragment from the address bar with `history.replaceState`, so the data is not left in a bookmark, the history list, or a copied URL. The inbox is kept in memory and in `sessionStorage` for that tab only, so a reload still works. **Forget** in the banner clears it.
 
 `tools/make_link.py` (Python 3, standard library only) and `tools/make_link.mjs` (Node) produce these links.
 

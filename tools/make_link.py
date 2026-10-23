@@ -26,7 +26,7 @@ import sys
 import zlib
 from typing import Any
 
-DEFAULT_BASE = "https://inbox.mascaro.eu/"
+DEFAULT_BASE = "https://grok-bot-inbox.vercel.app/"
 
 # Chromium drops URLs longer than 2 MiB (url::kMaxURLChars). We stop a bit
 # below that so the base URL and any chat-client wrapping still fit.
