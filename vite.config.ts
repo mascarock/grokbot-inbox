@@ -13,8 +13,9 @@ function sampleInboxPlugin(): Plugin {
     name: 'sample-inbox',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        const path = req.url?.split('?')[0] ?? '';
-        if (path.endsWith('/sample-inbox.json')) {
+        const [path, query = ''] = (req.url ?? '').split('?');
+        // Serve the public download only; Vite's own `?import` module request must pass through.
+        if (path.endsWith('/sample-inbox.json') && !path.includes('/examples/') && !/(^|&)import(=|&|$)/.test(query)) {
           res.setHeader('Content-Type', 'application/json; charset=utf-8');
           res.setHeader('Cache-Control', 'no-cache');
           res.end(load());

@@ -1,4 +1,5 @@
 import { addressesEqual, formatParticipant, shortName } from '../lib/addresses';
+import type { ComposeKind } from '../lib/command';
 import { formatMessageTime, formatThreadTime } from '../lib/dates';
 import { effectiveDirection, messageSnippet } from '../lib/filterThreads';
 import { htmlHasRemoteImages } from '../lib/sanitizeHtml';
@@ -34,6 +35,7 @@ export function MessageCard({
   inlineOpen,
   onToggleRemote,
   onToggleInline,
+  onCompose,
   threadSubject,
 }: {
   message: Message;
@@ -43,6 +45,7 @@ export function MessageCard({
   inlineOpen: boolean;
   onToggleRemote: () => void;
   onToggleInline: () => void;
+  onCompose: (kind: ComposeKind) => void;
   threadSubject: string;
 }) {
   const isYou = addressesEqual(message.from.address, inboxAddress);
@@ -104,6 +107,17 @@ export function MessageCard({
         )}
         <AttachmentList attachments={message.attachments} inlineOpen={inlineOpen} onToggleInline={onToggleInline} />
       </div>
+      <footer className="message-actions" aria-label="Message actions">
+        <button type="button" className="btn btn-small" onClick={() => onCompose('reply')}>
+          Reply
+        </button>
+        <button type="button" className="btn btn-small" onClick={() => onCompose('reply-all')}>
+          Reply all
+        </button>
+        <button type="button" className="btn btn-small" onClick={() => onCompose('forward')}>
+          Forward
+        </button>
+      </footer>
     </article>
   );
 }
