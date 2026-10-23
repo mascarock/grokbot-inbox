@@ -1,8 +1,8 @@
 # Grok Bot Inbox
 
-Read your Grok Bot agent inbox in the browser, as a proper mail client, without giving anyone else access to it.
+Read your Grok Bot agent inbox in the browser, as a proper mail client, without giving anyone else access to it. Reply, star, archive, and label; the page stays static and nothing leaves your browser.
 
-Grok Bot has no public API for reading mail. Only the bot that owns an inbox can read it. So the bot does the reading and hands you a link. The link carries the export inside the URL fragment, which browsers never send to a server. The page decodes it locally, shows it, and removes it from the address bar.
+Grok Bot has no public API for reading or sending mail. Only the bot that owns an inbox can do either. So the bot does the reading and hands you a link. The link carries the export inside the URL fragment, which browsers never send to a server. The page decodes it locally, shows it, and removes it from the address bar. When you write a reply, the page gives you a short text block to paste back to your bot, and the bot sends it after you confirm a draft card.
 
 There is no central server either. Your bot deploys **your own copy** of this viewer to **your own** free Vercel account, at `https://grokbot-inbox-<your-handle>.vercel.app/`, and every link it sends you opens that copy. Nobody runs a host that sees everyone's traffic, and nobody's copy depends on anyone else's.
 
@@ -13,7 +13,7 @@ There is no central server either. Your bot deploys **your own copy** of this vi
 3. First time only: the bot asks you to connect Vercel (one click, free account). It creates `grokbot-inbox-<your-handle>` there from this repository and waits for it to build.
 4. The bot reads its own mailbox, read-only, and replies with a link to your copy with your inbox already loaded. Open it.
 
-The bot follows [bot/SKILL.md](bot/SKILL.md): it reuses an existing `grokbot-inbox-*` project if you have one, never sends, replies, or changes mail, treats email content as untrusted, builds the export per [docs/SCHEMA.md](docs/SCHEMA.md), runs [tools/make_link.py](tools/make_link.py) with `--base` set to your copy, and sends you the link plus the JSON file as a fallback. The link is private the way a document is private: whoever has it can open it, so do not forward it.
+The bot follows [bot/SKILL.md](bot/SKILL.md): it reuses an existing `grokbot-inbox-*` project if you have one, exports read-only, treats email content as untrusted, builds the export per [docs/SCHEMA.md](docs/SCHEMA.md), runs [tools/make_link.py](tools/make_link.py) with `--base` set to your copy, and sends you the link plus the JSON file as a fallback. The same skill tells it what to do with the `/inbox-send` and `/inbox-refresh` blocks the viewer produces: parse, validate the sender, show a draft card, send only on your confirmation. The link is private the way a document is private: whoever has it can open it, so do not forward it.
 
 **Try the demo** with a fictional inbox (`demo+roma@mail.grokbot.com`, everyone on `example.com`):
 
@@ -46,10 +46,45 @@ The layout follows a mail client: a thread list and a reading pane.
 - Inline images (`inline: true`, usually signatures) are hidden until you show them.
 - Light and dark follow your system until you toggle them.
 
+## Reply, and other things an inbox does
+
+The viewer never sends mail and never calls an API with mail data. Only your bot can send, through a draft card you confirm. The page's job is to get a well-formed draft to the bot.
+
+**Reply, Reply all, Forward, Compose.** Each message and each thread header has the three buttons; **Compose** in the top bar starts a new message. To and Cc are prefilled from the message you are answering with your own inbox address left out; the subject gets one `Re:` or `Fwd:`; the quoted original (or the forwarded block) sits below the body, collapsible, with a checkbox to leave it out. Drafts autosave in `localStorage` per inbox and thread, so a closed draft shows up as **Draft** on the thread row and can be resumed.
+
+**Send with my bot.** Turns the draft into a plain-text block and copies it:
+
+```
+/inbox-send v1
+from: demo+roma@mail.grokbot.com
+kind: reply
+thread: th-tent
+in-reply-to: m-tent-3
+to: Alice Example <alice@example.com>
+subject: Re: Meeting point at the orange tent
+---
+Perfect, see you at the tent.
+
+On Oct 23, 2026, 1:40 PM UTC, Alice Example <alice@example.com> wrote:
+> Orange tent it is.
+```
+
+Paste it into your bot chat. The bot parses it, checks the `from` address is one of its own inboxes, shows a draft card, and sends only when you confirm the card. On phones a **Share** button hands the block to the share sheet (`navigator.share`). The draft is then marked **Handed to bot** locally. The format is specified in [docs/COMMANDS.md](docs/COMMANDS.md): header lines, a `---` separator, a body in which `---` lines are escaped, no line breaks allowed in headers, addresses validated. Parser and formatter live in [src/lib/command.ts](src/lib/command.ts) with tests.
+
+**Refresh.** The circular-arrow button copies `/inbox-refresh v1` with your inbox address. Paste it to the bot and it exports again and sends a fresh link. Because the export keeps the same inbox address and stable ids, your local state carries over.
+
+**Read, star, archive, label.** Opening a thread marks it read; a thread turns unread again when a later export has a newer message in it. Stars, archive, and free-text labels are per inbox in `localStorage`. The folders **Inbox / Unread / Starred / Archived** sit above the list, next to the direction, plus-tag, and label filters; search works inside any of them. None of this changes the mailbox itself.
+
+**Keyboard.** `j` / `k` next and previous thread, `Enter` opens it on a phone, `r` reply, `a` reply all, `f` forward, `c` compose, `e` archive, `s` star, `u` mark unread, `/` search, `Esc` closes, `?` shows the cheatsheet.
+
+**Phones.** The layout flows list → thread → compose, one screen at a time, with a back link at each step.
+
 ## Privacy, concretely
 
 - `#data=` is a URL fragment. The request your Vercel project sees is `GET /`. The fragment stays in the browser.
 - On load the page decodes the fragment, validates it, renders it, then calls `history.replaceState` so the address bar shows only the base URL. The inbox lives in memory and in this tab's `sessionStorage` so a reload works. **Forget** in the banner clears it.
+- Read marks, stars, archive, labels, and drafts are in `localStorage` under `grokbot-inbox:state:<inbox address>`. Drafts include what you typed and the quoted text; clear site data to remove them.
+- Sending goes through your bot and a draft card you confirm. The page only puts text on the clipboard or in the share sheet.
 - There are no analytics and no network calls from the page except the ones you ask for (`?src=`, or "Load remote images" inside one message).
 - The only mail in this repository is the fictional sample. Real exports must not be committed; `exports/` and `*.export.json` are gitignored.
 
@@ -116,4 +151,4 @@ python3 tools/make_link.py export.json --lite --base https://your-copy.vercel.ap
 
 ## What this is not
 
-There is no server component and none is planned. See [docs/ROADMAP.md](docs/ROADMAP.md). The UI reads mail through a small source adapter (`src/sources/`), so other producers can plug in without touching the thread view.
+There is no server component and none is planned, and the page itself does not send mail. See [docs/ROADMAP.md](docs/ROADMAP.md). The UI reads mail through a small source adapter (`src/sources/`), so other producers can plug in without touching the thread view.

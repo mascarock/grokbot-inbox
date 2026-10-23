@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import sample from '../examples/sample-inbox.json';
 import schema from '../schema/inbox.schema.json';
 import { threadAddresses } from './lib/addresses';
-import { filterThreads } from './lib/filterThreads';
+import { INITIAL_FILTERS, filterThreads } from './lib/filterThreads';
 import { parseInboxExport } from './sources/parseExport';
 
 const ajv = new Ajv({ allErrors: true, strict: false });
@@ -53,10 +53,10 @@ describe('sample inbox', () => {
       .filter((attachment) => attachment.inline);
     expect(inline.length).toBeGreaterThan(1);
 
-    expect(filterThreads(inbox.threads, { query: '', direction: 'all', tag: 'paris' }).map((thread) => thread.id)).toEqual([
+    expect(filterThreads(inbox.threads, { ...INITIAL_FILTERS, tag: 'paris' }).map((thread) => thread.id)).toEqual([
       'th-paris',
     ]);
-    expect(filterThreads(inbox.threads, { query: '', direction: 'sent', tag: null }).every((thread) =>
+    expect(filterThreads(inbox.threads, { ...INITIAL_FILTERS, direction: 'sent' }).every((thread) =>
       thread.messages.some((message) => message.direction === 'sent'),
     )).toBe(true);
   });

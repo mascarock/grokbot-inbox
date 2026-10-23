@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ThreadFilters } from '../lib/filterThreads';
+import { INITIAL_FILTERS, type ThreadFilters } from '../lib/filterThreads';
 import { readLinkPayload } from '../lib/linkCodec';
 import { forgetLinkPayload, recallLinkPayload, rememberLinkPayload } from '../lib/linkMemory';
 import {
@@ -10,8 +10,6 @@ import {
   type InboxSource,
 } from '../sources';
 import type { InboxExport } from '../types/inbox';
-
-const INITIAL_FILTERS: ThreadFilters = { query: '', direction: 'all', tag: null };
 
 export function useInboxSession() {
   const [inbox, setInbox] = useState<InboxExport | null>(null);

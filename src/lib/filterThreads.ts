@@ -1,15 +1,29 @@
 import type { InboxExport, Message, Thread } from '../types/inbox';
 import { plusTags, threadAddresses } from './addresses';
+import { EMPTY_STATE, isArchived, isStarred, isUnread, threadLabels, type LocalInboxState } from './localInboxState';
 import { htmlToPlainSnippet, snippetFromText } from './text';
 
 export type DirectionFilter = 'all' | 'sent' | 'received';
+export type Folder = 'inbox' | 'starred' | 'archived' | 'unread';
 
 export interface ThreadFilters {
   query: string;
+  folder: Folder;
   direction: DirectionFilter;
   /** Lowercase plus-tag without the leading "+". Null means every tag. */
   tag: string | null;
+  /** A label the owner added locally. Null means every label. */
+  label: string | null;
 }
+
+export const INITIAL_FILTERS: ThreadFilters = { query: '', folder: 'inbox', direction: 'all', tag: null, label: null };
+
+export const FOLDERS: { id: Folder; label: string }[] = [
+  { id: 'inbox', label: 'Inbox' },
+  { id: 'unread', label: 'Unread' },
+  { id: 'starred', label: 'Starred' },
+  { id: 'archived', label: 'Archived' },
+];
 
 /** Missing or unknown direction is treated as received. */
 export function effectiveDirection(message: Message): 'sent' | 'received' {
@@ -33,9 +47,16 @@ export function collectPlusTags(inbox: InboxExport): string[] {
   return [...tags].sort((a, b) => a.localeCompare(b));
 }
 
-export function filterThreads(threads: Thread[], filters: ThreadFilters): Thread[] {
+export function filterThreads(
+  threads: Thread[],
+  filters: ThreadFilters,
+  state: LocalInboxState = EMPTY_STATE,
+  inboxAddress = '',
+): Thread[] {
   const query = filters.query.trim().toLowerCase();
   return threads.filter((thread) => {
+    if (!inFolder(thread, filters.folder, state, inboxAddress)) return false;
+    if (filters.label && !threadLabels(thread.id, state).includes(filters.label)) return false;
     if (filters.direction !== 'all') {
       const matches = thread.messages.some((message) => effectiveDirection(message) === filters.direction);
       if (!matches) return false;
@@ -48,6 +69,20 @@ export function filterThreads(threads: Thread[], filters: ThreadFilters): Thread
     const haystack = searchableText(thread);
     return haystack.includes(query);
   });
+}
+
+function inFolder(thread: Thread, folder: Folder, state: LocalInboxState, inboxAddress: string): boolean {
+  const archived = isArchived(thread.id, state);
+  switch (folder) {
+    case 'archived':
+      return archived;
+    case 'starred':
+      return isStarred(thread.id, state);
+    case 'unread':
+      return !archived && isUnread(thread, state, inboxAddress);
+    default:
+      return !archived;
+  }
 }
 
 function searchableText(thread: Thread): string {
