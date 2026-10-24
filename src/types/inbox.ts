@@ -69,4 +69,18 @@ export interface InboxExport {
   mode?: ExportMode;
   /** Exporter metadata. The viewer does not require a particular shape. */
   source?: Record<string, unknown>;
+  /**
+   * Optional prefill for the viewer's webhook settings so the user only
+   * pastes the sender key. Never carries the key itself. See docs/RELAY.md.
+   */
+  relay?: RelayPrefill;
+}
+
+export interface RelayPrefill {
+  /** Webhook URL of the bot's "inbox webhook" routine. */
+  webhookUrl?: string;
+  /** Header that carries the sender key. Default `Authorization`. */
+  keyHeader?: string;
+  /** Prefix in front of the key inside the header. Default `Bearer `. */
+  keyPrefix?: string;
 }

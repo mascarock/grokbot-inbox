@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { canShare, copyText, shareText } from '../lib/clipboard';
-import { CommandError, formatSendCommand, parseRecipients } from '../lib/command';
+import { CommandError, formatSendCommand, parseRecipients, type SendCommand } from '../lib/command';
 import { draftBody, type Draft } from '../lib/compose';
-import { CloseIcon, CopyIcon, MaximizeIcon, MinimizeIcon, ShareIcon, TrashIcon } from './Icons';
+import { OUTBOX_PICKUP_HINT, type DeliveryOutcome, type DeliveryTarget } from '../lib/outbox';
+import { CloseIcon, CopyIcon, MaximizeIcon, MinimizeIcon, SendIcon, ShareIcon, TrashIcon } from './Icons';
 
 const TITLES: Record<Draft['kind'], string> = {
   new: 'New message',
@@ -19,6 +20,9 @@ export function ComposeView({
   onDiscard,
   onClose,
   onToast,
+  delivery = 'copy',
+  onDeliver,
+  onOpenSettings,
 }: {
   draft: Draft;
   inboxAddress: string;
@@ -27,11 +31,18 @@ export function ComposeView({
   onDiscard: () => void;
   onClose: () => void;
   onToast: (message: string, tone?: 'info' | 'error') => void;
+  /** How "Send with my bot" reaches the bot from this device: webhook (instant), outbox (encrypted, picked up on a schedule), or copy. */
+  delivery?: DeliveryTarget;
+  /** Hands the payload to the bot: webhook first when configured, then the encrypted outbox. */
+  onDeliver?: (command: Omit<SendCommand, 'version'>, commandText: string) => Promise<DeliveryOutcome>;
+  onOpenSettings?: () => void;
 }) {
+  const botReady = delivery !== 'copy' && Boolean(onDeliver);
   const toRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const [showCommand, setShowCommand] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const needsTo = draft.kind === 'forward' || draft.kind === 'new';
@@ -85,11 +96,53 @@ export function ComposeView({
     onToast(mode === 'share' ? 'Shared. Paste it in your bot chat.' : 'Copied, paste it in your bot chat');
   }
 
+  async function sendViaBot(event?: FormEvent) {
+    event?.preventDefault();
+    if (!command.text || !onDeliver) {
+      setError(command.problem);
+      return;
+    }
+    setSending(true);
+    try {
+      const outcome = await onDeliver(
+        {
+          from: inboxAddress,
+          kind: draft.kind,
+          thread: draft.threadId,
+          inReplyTo: draft.inReplyTo,
+          to: parseRecipients(draft.to),
+          cc: parseRecipients(draft.cc),
+          subject: draft.subject,
+          body: draftBody(draft),
+        },
+        command.text,
+      );
+      if (outcome.ok) {
+        onHanded({ ...draft, handedToBotAt: new Date().toISOString() });
+        if (outcome.via === 'outbox') {
+          onToast(
+            outcome.webhookError
+              ? `Webhook unreachable, so the draft was queued for your bot instead. It will show you the draft ${OUTBOX_PICKUP_HINT}.`
+              : `Queued for your bot — it will show you the draft ${OUTBOX_PICKUP_HINT}.`,
+          );
+        } else {
+          onToast('Sent to your bot — confirm the draft in your Grok Bot chat.');
+        }
+        return;
+      }
+      setShowCommand(true);
+      onToast(`${outcome.error ?? 'The bot could not be reached.'} Copy the command instead.`, 'error');
+    } finally {
+      setSending(false);
+    }
+  }
+
   const problem = error ?? (!command.text && (draft.body || draft.to) ? command.problem : null);
+  const primary = botReady ? sendViaBot : (event?: FormEvent) => handToBot('copy', event);
 
   return (
     <section className={expanded ? 'compose is-expanded' : 'compose'} aria-label={TITLES[draft.kind]}>
-      <form className="compose-card" onSubmit={(event) => void handToBot('copy', event)}>
+      <form className="compose-card" onSubmit={(event) => void primary(event)}>
         <header className="compose-head">
           <div className="compose-title">
             <h2>{TITLES[draft.kind]}</h2>
@@ -172,10 +225,16 @@ export function ComposeView({
         )}
 
         <footer className="compose-foot">
-          <button type="submit" className="btn btn-primary">
-            <CopyIcon />
-            Send with my bot
+          <button type="submit" className="btn btn-primary" disabled={sending}>
+            {botReady ? <SendIcon /> : <CopyIcon />}
+            {sending ? (delivery === 'outbox' ? 'Queuing…' : 'Sending…') : 'Send with my bot'}
           </button>
+          {botReady && (
+            <button type="button" className="btn" onClick={() => void handToBot('copy')} title="Copy the command block instead of posting it">
+              <CopyIcon />
+              Copy
+            </button>
+          )}
           {canShare() && (
             <button type="button" className="btn" onClick={() => void handToBot('share')}>
               <ShareIcon />
@@ -190,7 +249,38 @@ export function ComposeView({
             <TrashIcon />
           </button>
         </footer>
-        <p className="compose-note">The viewer never sends mail. Paste the block in your Grok Bot chat; the bot shows a draft card you confirm.</p>
+        <p className="compose-note">
+          {delivery === 'webhook' && botReady ? (
+            <>The viewer never sends mail. This posts the draft to your bot, which shows a draft card you confirm.</>
+          ) : delivery === 'outbox' && botReady ? (
+            <>
+              The viewer never sends mail. This leaves an encrypted draft for your bot, which picks it up {OUTBOX_PICKUP_HINT} and shows you a draft
+              card to confirm.
+              {onOpenSettings && (
+                <>
+                  {' '}
+                  <button type="button" className="link-btn" onClick={onOpenSettings}>
+                    Add a webhook
+                  </button>{' '}
+                  for instant delivery.
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              The viewer never sends mail. Paste the block in your Grok Bot chat; the bot shows a draft card you confirm.
+              {onOpenSettings && (
+                <>
+                  {' '}
+                  <button type="button" className="link-btn" onClick={onOpenSettings}>
+                    Connect a webhook
+                  </button>{' '}
+                  to skip the paste.
+                </>
+              )}
+            </>
+          )}
+        </p>
       </form>
     </section>
   );

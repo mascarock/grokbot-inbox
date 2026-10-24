@@ -50,6 +50,11 @@ export default defineConfig({
   plugins: [react(), sampleInboxPlugin()],
   test: {
     environment: 'jsdom',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'api/**/*.test.ts', 'bot/**/*.test.ts'],
+    // The relay function and the bot's encrypt script are plain Node.
+    environmentMatchGlobs: [
+      ['api/**', 'node'],
+      ['bot/**', 'node'],
+    ],
   },
 });

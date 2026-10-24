@@ -54,7 +54,19 @@ export function parseInboxExport(input: unknown): InboxExport {
   if (raw.source && typeof raw.source === 'object' && !Array.isArray(raw.source)) {
     result.source = raw.source as Record<string, unknown>;
   }
+  const relay = parseRelayPrefill(raw.relay);
+  if (relay) result.relay = relay;
   return result;
+}
+
+function parseRelayPrefill(input: unknown): InboxExport['relay'] | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const raw = input as Record<string, unknown>;
+  const out: NonNullable<InboxExport['relay']> = {};
+  if (typeof raw.webhookUrl === 'string' && raw.webhookUrl.trim()) out.webhookUrl = raw.webhookUrl.trim();
+  if (typeof raw.keyHeader === 'string' && raw.keyHeader.trim()) out.keyHeader = raw.keyHeader.trim();
+  if (typeof raw.keyPrefix === 'string') out.keyPrefix = raw.keyPrefix;
+  return Object.keys(out).length ? out : null;
 }
 
 function extractJson(text: string): string {

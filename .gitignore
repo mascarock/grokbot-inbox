@@ -8,3 +8,9 @@ coverage
 # Local mailbox exports. The fictional sample under examples/ is the only inbox JSON that belongs in git.
 /exports/
 *.export.json
+
+# Encrypted snapshots dropped into public/ for local testing, and snapshot keys.
+/public/inbox.enc
+/public/inbox.meta.json
+*.key
+*.key.seq

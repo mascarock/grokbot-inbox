@@ -9,6 +9,7 @@ import {
   MoonIcon,
   PenIcon,
   RefreshIcon,
+  SettingsIcon,
   StarIcon,
   SunIcon,
   TagIcon,
@@ -30,11 +31,14 @@ export function Sidebar({
   theme,
   exportedLabel,
   lite,
+  live,
+  queued = 0,
   onFilters,
   onCompose,
   onRefresh,
   onToggleTheme,
   onShortcuts,
+  onSettings,
 }: {
   inboxAddress: string;
   filters: ThreadFilters;
@@ -44,11 +48,16 @@ export function Sidebar({
   theme: 'light' | 'dark';
   exportedLabel: string;
   lite: boolean;
+  /** Set when the inbox comes from an encrypted snapshot that the viewer polls. */
+  live: { label: string; refreshing: boolean; stale: boolean } | null;
+  /** Drafts left in the encrypted outbox that the bot has not picked up yet. */
+  queued?: number;
   onFilters: (filters: ThreadFilters) => void;
   onCompose: () => void;
   onRefresh: () => void;
   onToggleTheme: () => void;
   onShortcuts: () => void;
+  onSettings: () => void;
 }) {
   return (
     <aside className="sidebar" aria-label="Folders and labels">
@@ -125,12 +134,39 @@ export function Sidebar({
           {inboxAddress}
         </p>
         <p className="side-meta">
-          {exportedLabel && <span>Exported {exportedLabel}</span>}
+          {live ? (
+            <span className={live.stale ? 'live-status is-stale' : 'live-status'} title={exportedLabel ? `Exported ${exportedLabel}` : undefined}>
+              <span className={live.refreshing ? 'live-dot is-busy' : 'live-dot'} aria-hidden="true" />
+              {live.stale ? 'offline · ' : ''}
+              {live.label || 'live'}
+            </span>
+          ) : (
+            exportedLabel && <span>Exported {exportedLabel}</span>
+          )}
           {lite && <span title="Quoted replies and inline images were left out to keep the link short."> · lite</span>}
+          {queued > 0 && (
+            <button
+              type="button"
+              className="queued-pill"
+              onClick={onSettings}
+              title="Drafts waiting in the encrypted outbox. Your bot picks them up within ~15 min and shows you a draft card."
+            >
+              {queued} waiting for your bot
+            </button>
+          )}
         </p>
         <div className="side-tools">
-          <button type="button" className="icon-btn" onClick={onRefresh} aria-label="Copy the refresh command for your bot" title="Refresh via your bot">
+          <button
+            type="button"
+            className={live?.refreshing ? 'icon-btn is-spinning' : 'icon-btn'}
+            onClick={onRefresh}
+            aria-label={live ? 'Check for a newer snapshot' : 'Refresh via your bot'}
+            title={live ? 'Check for a newer snapshot' : 'Refresh via your bot'}
+          >
             <RefreshIcon />
+          </button>
+          <button type="button" className="icon-btn" onClick={onSettings} aria-label="Settings" title="Settings (sending, this device)">
+            <SettingsIcon />
           </button>
           <button type="button" className="icon-btn" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} title="Theme">
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
