@@ -45,13 +45,16 @@ jobs:
         run: npm run build
 
       - name: Upload Pages artifact
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        # Pages is opt-in: set the repository variable ENABLE_PAGES to "true"
+        # after turning on Settings → Pages → Source: GitHub Actions. Without
+        # it this workflow only lints, tests, and builds.
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.ENABLE_PAGES == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.ENABLE_PAGES == 'true'
     needs: build
     runs-on: ubuntu-latest
     environment:
