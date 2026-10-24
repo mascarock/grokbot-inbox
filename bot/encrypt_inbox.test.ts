@@ -50,6 +50,24 @@ describe('bot/encrypt_inbox.mjs CLI', () => {
     expect(again.iv).not.toBe(envelope.iv);
   });
 
+  it('--outbox and --acked land in inbox.meta.json only', () => {
+    const out = join(dir, 'node-meta');
+    writeFileSync(join(dir, 'acked.json'), JSON.stringify(['outbox/c.enc', 7]));
+    const result = run('node', [
+      mjs, 'encrypt', '--in', 'export.json', '--key-file', keyFile, '--out-dir', out,
+      '--outbox', '--acked', 'outbox/a.enc,outbox/b.enc', '--acked', join(dir, 'acked.json'), '--acked', 'outbox/a.enc',
+    ]);
+    expect(result.status, result.stderr).toBe(0);
+    const meta = JSON.parse(readFileSync(join(out, 'inbox.meta.json'), 'utf8')) as Record<string, unknown>;
+    expect(meta.outbox).toBe(true);
+    expect(meta.outboxAcked).toEqual(['outbox/a.enc', 'outbox/b.enc', 'outbox/c.enc']);
+    const plain = JSON.parse(readFileSync(join(out, 'inbox.enc'), 'utf8')) as Record<string, unknown>;
+    expect(plain.outbox).toBeUndefined();
+    const bare = run('node', [mjs, 'encrypt', '--in', 'export.json', '--key-file', keyFile, '--out-dir', out]);
+    expect(bare.status).toBe(0);
+    expect(Object.keys(JSON.parse(readFileSync(join(out, 'inbox.meta.json'), 'utf8')) as object).sort()).toEqual(['seq', 'updatedAt']);
+  });
+
   it('link puts the key only in the fragment', () => {
     const link = run('node', [mjs, 'link', '--base', 'https://grokbot-inbox-x.vercel.app', '--key-file', keyFile]).stdout.trim();
     expect(link).toBe(`https://grokbot-inbox-x.vercel.app/#k=${readFileSync(keyFile, 'utf8').trim()}`);
@@ -69,8 +87,9 @@ describe('bot/encrypt_inbox.py', () => {
     const keyFile = join(dir, 'py.key');
     const out = join(dir, 'py-out');
     expect(run('python3', [py, 'keygen', '--key-file', keyFile]).status).toBe(0);
-    const enc = run('python3', [py, 'encrypt', '--in', 'export.json', '--key-file', keyFile, '--out-dir', out, '--key-header', 'X-Api-Key', '--key-prefix', '']);
+    const enc = run('python3', [py, 'encrypt', '--in', 'export.json', '--key-file', keyFile, '--out-dir', out, '--key-header', 'X-Api-Key', '--key-prefix', '', '--outbox', '--acked', 'outbox/a.enc']);
     expect(enc.status, enc.stderr).toBe(0);
+    expect(JSON.parse(readFileSync(join(out, 'inbox.meta.json'), 'utf8'))).toMatchObject({ outbox: true, outboxAcked: ['outbox/a.enc'] });
     const key = readFileSync(keyFile, 'utf8').trim();
     const envelope = parseEnvelope(JSON.parse(readFileSync(join(out, 'inbox.enc'), 'utf8')));
     expect(envelope.cmp).toBe('deflate-raw');

@@ -6,7 +6,8 @@
  *   node encrypt_inbox.mjs keygen                       → prints a new base64url 256-bit key
  *   node encrypt_inbox.mjs encrypt --in export.json --key-file ~/.grokbot-inbox/<handle>.key \
  *        --out-dir /tmp/publish [--seq-file ~/.grokbot-inbox/<handle>.seq] [--no-compress] \
- *        [--webhook-url https://…] [--key-header Authorization] [--key-prefix "Bearer "]
+ *        [--webhook-url https://…] [--key-header Authorization] [--key-prefix "Bearer "] \
+ *        [--outbox] [--acked outbox/a.enc,outbox/b.enc | --acked acked.json]
  *   node encrypt_inbox.mjs link --base https://grokbot-inbox-<handle>.vercel.app/ --key-file …
  *   node encrypt_inbox.mjs decrypt --in inbox.enc --key-file …      (round-trip check)
  *
@@ -40,11 +41,9 @@ function parseArgs(argv) {
     if (arg.startsWith('--')) {
       const name = arg.slice(2);
       const next = argv[i + 1];
-      if (next === undefined || next.startsWith('--')) out[name] = true;
-      else {
-        out[name] = next;
-        i++;
-      }
+      const value = next === undefined || next.startsWith('--') ? true : (i++, next);
+      // A repeated flag collects its values (used by --acked).
+      out[name] = name in out ? [].concat(out[name], value) : value;
     } else out._.push(arg);
   }
   return out;
@@ -91,6 +90,27 @@ export async function decrypt(envelope, keyB64) {
   const plain = new Uint8Array(await subtle.decrypt({ name: 'AES-GCM', iv: fromB64url(envelope.iv) }, key, fromB64url(envelope.ct)));
   const bytes = envelope.cmp === 'deflate-raw' ? inflateRawSync(plain) : plain;
   return Buffer.from(bytes).toString('utf8');
+}
+
+/**
+ * inbox.meta.json. `--outbox` tells the viewer /api/outbox is set up (Part G);
+ * `--acked id,id` (repeatable, or a path to a JSON array) lists outbox items
+ * the bot has handled so the viewer drops them from its "waiting" list.
+ */
+export function buildMeta(seq, updatedAt, args = {}) {
+  const meta = { seq, updatedAt };
+  if (args.outbox) meta.outbox = true;
+  const acked = [];
+  for (const value of [].concat(args.acked ?? [])) {
+    if (value === true) continue;
+    const text = String(value);
+    if (existsSync(text)) {
+      const parsed = JSON.parse(readFileSync(text, 'utf8'));
+      if (Array.isArray(parsed)) acked.push(...parsed.filter((id) => typeof id === 'string'));
+    } else acked.push(...text.split(',').map((id) => id.trim()).filter(Boolean));
+  }
+  if (acked.length) meta.outboxAcked = [...new Set(acked)].slice(-200);
+  return meta;
 }
 
 function nextSeq(seqFile) {
@@ -149,7 +169,7 @@ async function main() {
     const outDir = args['out-dir'] ?? '.';
     mkdirSync(outDir, { recursive: true });
     writeFileSync(join(outDir, 'inbox.enc'), JSON.stringify(envelope));
-    writeFileSync(join(outDir, 'inbox.meta.json'), JSON.stringify({ seq, updatedAt }));
+    writeFileSync(join(outDir, 'inbox.meta.json'), JSON.stringify(buildMeta(seq, updatedAt, args)));
     console.error(`wrote ${join(outDir, 'inbox.enc')} (seq ${seq}, ${envelope.ct.length} chars) and inbox.meta.json`);
     return;
   }
