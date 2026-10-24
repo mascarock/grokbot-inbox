@@ -1,17 +1,20 @@
-# The live relay: encrypted snapshots in, webhook replies out
+# The live relay: encrypted snapshots in, encrypted replies out
 
-This is the "nothing to copy or paste" mode of the viewer. Everything runs in the owner's own accounts: their Grok Bot (which can read the mailbox and has the Vercel connector) and their own free Vercel project `grokbot-inbox-<handle>`. There is no shared server, no third-party storage, and no secret beyond the Vercel connector the bot already has.
+This is the "nothing to copy or paste" mode of the viewer. Everything runs in the owner's own accounts: their Grok Bot (which can read the mailbox and has the Vercel connector) and their own free Vercel project `grokbot-inbox-<handle>`. There is no shared server and no third-party storage; the only state outside the bot's machine is ciphertext on the owner's project.
 
 ```mermaid
 flowchart LR
     M([New mail]) --> B[Bot: export → encrypt → create_deployment]
     B -- "inbox.enc (ciphertext) + viewer files" --> V[(grokbot-inbox-you.vercel.app)]
     V -- "GET /inbox.enc, no-store" --> P[Browser: AES-256-GCM decrypt with #k]
-    P -- "POST JSON (direct, or via /api/relay)" --> W[Bot webhook routine]
-    W --> C{Draft card} -- confirm --> S([Send])
+    P -- "POST ciphertext" --> O[/api/outbox → Blob store, private]
+    O -- "every 15 min: pull, decrypt, ack" --> C{Draft card}
+    P -. "optional: POST JSON (direct, or via /api/relay)" .-> W[Bot webhook routine]
+    W -.-> C
+    C -- confirm --> S([Send])
 ```
 
-The bot-side steps are written out in [bot/SKILL.md](../bot/SKILL.md) (Parts A, E, F). This page is the format reference.
+The bot-side steps are written out in [bot/SKILL.md](../bot/SKILL.md) (Parts A, E, F, G). This page is the format reference.
 
 ## 1. The link: `#k=`
 
@@ -53,7 +56,7 @@ Both files sit at the root of the owner's deployment next to `index.html`, serve
 | `seq` | Monotonic counter. The viewer swaps the inbox only when `seq` grows (or `updatedAt` is later at equal `seq`). |
 | `cmp` | Optional; `deflate-raw` or absent. |
 
-`inbox.meta.json` is `{ "seq": 128, "updatedAt": "…" }`, a few bytes the viewer polls first so it only downloads the envelope when something changed. If it is missing the viewer fetches the envelope directly.
+`inbox.meta.json` is `{ "seq": 128, "updatedAt": "…", "outbox": true, "outboxAcked": ["outbox/…enc"] }`, a few bytes the viewer polls first so it only downloads the envelope when something changed. If it is missing the viewer fetches the envelope directly. `outbox` (optional) says the bot finished setting up `/api/outbox` (§6); `outboxAcked` (optional) lists outbox item ids the bot has picked up in the last day, so the viewer can clear its "waiting for your bot" list. Both come from `encrypt --outbox --acked …`.
 
 The export inside may carry an optional `relay` block so the owner only pastes the webhook **key**, never the URL:
 
@@ -95,7 +98,7 @@ The bot republishes the whole site, so the snapshot is just another static file 
 4. `upload_file` for each file in the deploy set (base64 content, SHA-1, size; [bot/publish_files.mjs](../bot/publish_files.mjs) prints them and skips `.nojekyll` / `dist-manifest.json`), then `create_deployment` with `skipAutoDetectionConfirmation: "1"` top-level and `requestBody: { name, target: "production", files: [{ file, sha, size }, …], projectSettings: <same as step 3> }`. The connector cannot inline a dozen files in one call. Vercel serves the static files from the root and builds `api/relay.js` as a Node function.
 5. Poll `get_deployment` until `READY`. The production alias does not change, so the owner's link keeps working; their open tab picks the new snapshot up within a minute.
 
-**Why not Vercel Blob / Edge Config / KV?** Each needs a store created on the project and a read-write token wired into an environment variable, plus an authenticated write path for the bot. That is one or two extra secrets and manual dashboard steps, which this project avoids. A deployment per snapshot costs nothing on Hobby and needs only the connector.
+**Why is the snapshot a deployment and not a blob?** Publishing needs only the connector the bot already has: no store, no token, no environment variable, and a deployment per snapshot costs nothing on Hobby. The outbox (§6) does use a Blob store, because the browser has to *write* somewhere and the bot cannot deploy on the browser's behalf; the bot creates and connects that store once through the same connector.
 
 **Why not link the project to the GitHub repository?** A push to `main` would redeploy the viewer without `inbox.enc` and blank the inbox until the next publish. Keep the project unlinked; the bot refreshes the viewer files on every publish anyway. The connector cannot remove an existing Git link: create a fresh project, have the owner disconnect under *Settings → Git*, or as a stopgap set `commandForIgnoringBuildStep: "exit 0"` so Git-triggered builds are cancelled (bot/SKILL.md A3).
 
@@ -109,9 +112,9 @@ Vercel Hobby (free) allows **100 deployments per rolling 24 hours** per account,
 - keeps a daily budget of **80 publishes** and, once spent, publishes hourly until the window rolls over;
 - never publishes when the export is identical to the previous one (same thread ids and `lastMessageAt`), and always publishes when the owner asks (webhook `inbox-refresh` or chat).
 
-## 4. Replies: webhook payloads
+## 4. Replies: the payloads
 
-The viewer POSTs JSON to the bot's **webhook routine**. Payload types mirror the paste-able commands in [COMMANDS.md](COMMANDS.md):
+Whatever the route (outbox §6, or webhook below), the thing that reaches the bot is one of these JSON payloads. They mirror the paste-able commands in [COMMANDS.md](COMMANDS.md):
 
 ```json
 {
@@ -138,10 +141,16 @@ The viewer POSTs JSON to the bot's **webhook routine**. Payload types mirror the
 
 - `kind` is `new | reply | reply-all | forward`; `threadId` / `inReplyTo` appear only for replies.
 - `command` is the same message rendered as the `/inbox-send v1` block, so a bot can reuse the parser and the rules it already has for Part C. The two must agree; if they do not, the bot stops.
-- `inbox-action` is reserved; the viewer does not send it yet (archive, star, and read state stay local).
-- The bot treats every field as **untrusted input** and never sends anything without the owner confirming a draft card ([bot/SKILL.md](../bot/SKILL.md) Part F).
+- `inbox-action` is reserved; the viewer does not send it yet (archive, star, and read state stay local). The outbox and `bot/outbox.mjs` accept it so a future viewer can use it.
+- The bot treats every field as **untrusted input** and never sends anything without the owner confirming a draft card ([bot/SKILL.md](../bot/SKILL.md) Parts F and G).
 
-### Authentication header
+### Which route the viewer takes
+
+1. **Webhook**, if the owner configured one in Settings (instant; this section). A definite `4xx` from the webhook is final; CORS or network trouble is retried through `/api/relay`.
+2. **Outbox** (§6), if the snapshot meta says `outbox: true` or a `HEAD /api/outbox` answered `204`. Also the fallback when the webhook and the relay both fail.
+3. **Copy** the `/inbox-send v1` block for pasting ([COMMANDS.md](COMMANDS.md)).
+
+### Webhook: authentication header
 
 Grok Bot routines issue a **per-routine sender key**. The exact header name is not fixed yet, so the viewer makes it configurable in **Settings** (sidebar gear or `⌘K` → Settings):
 
@@ -176,4 +185,67 @@ If the real webhook host turns out to be elsewhere, add its suffix to the two al
 | `inbox.enc` | Public on the owner's Vercel project | No. AES-256-GCM ciphertext. |
 | Webhook URL | In the snapshot (encrypted) and in the browser | Mildly. Useless without the key. |
 | Webhook sender key | Owner's browser only | Yes. Lets anyone post payloads to the bot; the bot still shows a draft card before sending. |
+| Outbox token | Derived from the snapshot key in the browser and on the bot; never stored | Yes, but it is nothing new: whoever has the key has it. Lets one post ciphertext to the outbox; the bot still shows a draft card. |
+| `OUTBOX_TOKEN_SHA256` | Env var on the owner's project | No. A hash; cannot be turned back into the token. |
+| `BLOB_READ_WRITE_TOKEN` | Env var on the owner's project, created by Vercel | Yes, to Vercel's own Blob store. Only `/api/outbox` reads it; it never leaves the function. |
+| Outbox items (`outbox/*.enc`) | Private blobs in the owner's store | No. AES-256-GCM ciphertext, deleted once the bot acknowledged them. |
 | Vercel access | The bot's connector | Yes, and it already existed before this feature. |
+
+## 6. The outbox: `/api/outbox`
+
+Replies without a webhook. The browser cannot deploy, so it needs somewhere to *write*: a Vercel Blob store on the owner's own project, created and connected once by the bot (SKILL.md Part G). [api/outbox.js](../api/outbox.js) is a dependency-free Node function in the release bundle, like the relay.
+
+### Keys and token
+
+Everything derives from the snapshot key `k` (§1); there is no second secret to hand out.
+
+| | |
+| --- | --- |
+| Item encryption | `AES-256-GCM(k, iv, plaintext, aad)` with `aad = "grokbot-inbox/outbox/v1"` (UTF-8). The AAD binds the ciphertext to its purpose: a snapshot cannot be replayed as an item or vice versa. |
+| Item envelope | `{ "v": 1, "alg": "A256GCM", "iv": "<base64url 12 bytes>", "ct": "<base64url ct ‖ tag>" }` and nothing else. The plaintext is the §4 payload as JSON. |
+| Bearer token | `base64url(HMAC-SHA256(key = k, message = "grokbot-inbox/outbox/v1"))`, 43 characters. Computed by the viewer ([src/lib/crypto.ts](../src/lib/crypto.ts) `deriveOutboxToken`) and by `bot/outbox.mjs token`. |
+| What the server stores | `OUTBOX_TOKEN_SHA256` = hex `sha256(token)`, compared in constant time. The server never sees `k` and cannot decrypt anything. |
+
+### The function
+
+| Call | Who | Does |
+| --- | --- | --- |
+| `HEAD` / `OPTIONS /api/outbox` | viewer | Probe, no auth. `204` when both env vars are set, `503` otherwise. |
+| `POST /api/outbox` | viewer | `Authorization: Bearer <token>`, body = one envelope. Shape check only (`v`, `alg`, 96-bit `iv`, `ct` ≥ tag length, base64url, no other keys), 256 KB cap, best-effort per-IP rate limit (20/min per function instance), same-origin (`Origin`, when present, must match the host). Stores it as a **private** blob `outbox/<yyyymmddThhmmssmmmZ>-<12 hex>.enc`; answers `201 { "id" }`. |
+| `GET /api/outbox` | bot | Same bearer. Lists up to 50 pending items, oldest first: `{ "items": [{ "id", "at", "size", "envelope" }], "hasMore" }`. |
+| `DELETE /api/outbox?id=outbox/….enc` | bot | Same bearer. Removes one item; `404` if already gone. |
+| any | | `401` on a missing or wrong token; `503` with a plain-language message when `BLOB_READ_WRITE_TOKEN` or `OUTBOX_TOKEN_SHA256` is missing; `502` when the Blob API fails (no details echoed). Bodies are never logged. |
+
+Blob access is through Vercel's REST API (`https://vercel.com/api/blob`, `x-api-version: 13`) with the project's `BLOB_READ_WRITE_TOKEN`. Items are written with `x-vercel-blob-access: private` and no random suffix; `OUTBOX_BLOB_ACCESS=public` is an escape hatch for stores that predate private blobs (the content is ciphertext under an unguessable name either way).
+
+### Lifecycle
+
+```mermaid
+sequenceDiagram
+    participant V as Viewer
+    participant O as /api/outbox
+    participant B as Bot (every 15 min)
+    V->>O: HEAD (204?) once per session, unless inbox.meta.json says outbox: true
+    V->>O: POST envelope (Bearer token) → 201 { id }
+    Note over V: "Queued for your bot — it will show you the draft within ~15 min"<br/>id kept in localStorage per inbox
+    B->>O: GET (Bearer token) → items
+    Note over B: decrypt, validate, one draft card per item, wait for confirm
+    B->>O: DELETE ?id=… for each item
+    B->>V: republish with inbox.meta.json outboxAcked: [ids]
+    Note over V: drops the ids from "waiting for your bot"
+```
+
+The viewer side is [src/lib/outbox.ts](../src/lib/outbox.ts): `probeOutbox`, `postToOutbox`, `deliverPayload` (webhook → outbox → copy), and the local queue (`localStorage` key `grokbot-inbox-outbox:<inbox>`), reconciled against `outboxAcked` on every snapshot poll. The bot side is [bot/outbox.mjs](../bot/outbox.mjs):
+
+```sh
+node bot/outbox.mjs token --key-file ~/.grokbot-inbox/<handle>.key          # → hex for OUTBOX_TOKEN_SHA256
+node bot/outbox.mjs probe --url https://grokbot-inbox-<handle>.vercel.app   # → "ready" or why not
+node bot/outbox.mjs pull  --url https://… --key-file …                     # → JSON [{ id, at, payload | error }]
+node bot/outbox.mjs ack   --url https://… --key-file … --id outbox/….enc    # → deletes
+```
+
+`pull` decrypts locally, runs a structural check on each payload (`validatePayload`: type, version, addresses, one-line headers, non-empty body, a `/inbox-send v1` command block), and reports items it cannot use as `{ id, error }` so the bot can still acknowledge them.
+
+### What Vercel can see
+
+The ciphertext and its size, the time each item was posted and picked up, the caller's IP, and that the bearer token hashed to the stored value. Not the key, not the token, not a recipient, subject, or word of any reply.

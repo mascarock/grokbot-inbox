@@ -16,7 +16,19 @@ The hosting project is yours (`grokbot-inbox-<you>.vercel.app`). There is no sha
 ## What never leaves the browser
 
 - Stars, archive, labels, read marks, and drafts: `localStorage` under `grokbot-inbox:state:<inbox>`.
-- Webhook settings for **Send with my bot**: `localStorage` under `grokbot-inbox-webhook`, on that device only. The snapshot may prefill the URL; the key is always typed by you.
+- The list of replies waiting for your bot: `localStorage` under `grokbot-inbox-outbox:<inbox>` (ids and subjects only).
+- Optional webhook settings for **Send with my bot**: `localStorage` under `grokbot-inbox-webhook`, on that device only. The snapshot may prefill the URL; the key is always typed by you.
+
+## Replies: the encrypted outbox
+
+When you press **Send with my bot**, the reply is encrypted in your browser with the same key that opens the inbox (AES-256-GCM, bound to the purpose "outbox" so it can never be confused with a snapshot) and posted to `/api/outbox` on your own project. That function stores the ciphertext as a private file in a Vercel Blob store that your bot created on your project. Your bot fetches it on its schedule, decrypts it on its own machine, shows you a draft card, and deletes the item.
+
+- **The server stores only ciphertext.** It cannot read a recipient, a subject, or a word.
+- **The token is derived from your key.** The function checks `Authorization: Bearer <token>` where the token is an HMAC of the key, and stores only the token's SHA-256. The key itself never reaches Vercel; nothing new was created that could leak it.
+- **Vercel can see timing and size.** When an item was posted, when it was picked up, how many bytes it was, and the posting IP: the usual metadata of any HTTPS request to your project. It still cannot see what was in it.
+- **Nothing is sent by the server or the viewer.** Every item ends at a draft card in your bot chat that you confirm.
+
+Details and the exact format: [RELAY.md](RELAY.md) §6.
 
 ## Rendering mail safely
 
@@ -27,6 +39,8 @@ The hosting project is yours (`grokbot-inbox-<you>.vercel.app`). There is no sha
 ## Network calls the viewer makes
 
 - `GET /inbox.enc` and `GET /inbox.meta.json` on its own origin (`cache: no-store`), every ~60 s while the tab is visible and on focus, only in snapshot mode.
+- `HEAD /api/outbox` on its own origin once per session, when the snapshot meta does not already say the outbox exists.
+- `POST /api/outbox` on its own origin (ciphertext only) when you press **Send with my bot** and no webhook is configured, or the webhook failed. [`api/outbox.js`](../api/outbox.js) never logs bodies.
 - `POST` to your bot's webhook, or to `/api/relay` on your own project when the browser cannot reach the webhook directly, only when you press **Send with my bot** or **Refresh** with a webhook configured. [`api/relay.js`](../api/relay.js) forwards to allowlisted hosts only and never logs bodies.
 - Whatever you ask for explicitly: `?src=` and **Load remote images**.
 
@@ -34,4 +48,4 @@ No analytics, no fonts or icons from a CDN, no third-party scripts.
 
 ## Sending
 
-The viewer cannot send mail. Both paths (webhook payload, or the pasted `/inbox-send v1` block) end at your bot, which shows a draft card and sends only after you confirm. See [RELAY.md](RELAY.md) and [COMMANDS.md](COMMANDS.md).
+The viewer cannot send mail. All three paths (encrypted outbox item, webhook payload, or the pasted `/inbox-send v1` block) end at your bot, which shows a draft card and sends only after you confirm. See [RELAY.md](RELAY.md) and [COMMANDS.md](COMMANDS.md).

@@ -2,23 +2,32 @@ import { useEffect, useRef, useState } from 'react';
 import { isAllowedRelayTarget } from '../lib/relayAllowlist';
 import { DEFAULT_KEY_HEADER, DEFAULT_KEY_PREFIX, isHttpsUrl, type WebhookSettings } from '../lib/webhook';
 import type { SnapshotStatus } from '../hooks/useInboxSession';
-import { formatExportTime } from '../lib/dates';
+import { formatExportTime, formatRelativeTime } from '../lib/dates';
+import { OUTBOX_PICKUP_HINT, type QueuedItem } from '../lib/outbox';
 import { CloseIcon } from './Icons';
 
 export function SettingsModal({
   settings,
   snapshot,
+  outboxReady = false,
+  queue = [],
   prefilledUrl,
   onSave,
   onClear,
+  onClearQueue,
   onForgetDevice,
   onClose,
 }: {
   settings: WebhookSettings;
   snapshot: SnapshotStatus | null;
+  /** The encrypted outbox on this origin is set up, so replies reach the bot without a webhook. */
+  outboxReady?: boolean;
+  /** Drafts this device left in the outbox that no snapshot has acknowledged yet. */
+  queue?: QueuedItem[];
   prefilledUrl?: string;
   onSave: (settings: WebhookSettings) => void;
   onClear: () => void;
+  onClearQueue?: () => void;
   onForgetDevice?: () => void;
   onClose: () => void;
 }) {
@@ -58,11 +67,40 @@ export function SettingsModal({
           </button>
         </header>
 
+        {(outboxReady || queue.length > 0) && (
+          <section className="settings-section">
+            <h3>Waiting for your bot</h3>
+            <p className="settings-help">
+              {outboxReady
+                ? `Replies go to an encrypted outbox on this site. Your bot picks them up ${OUTBOX_PICKUP_HINT} and shows you a draft card to confirm; nothing is sent until you do.`
+                : 'Drafts you queued earlier. They disappear once a new snapshot shows your bot took them.'}
+            </p>
+            {queue.length > 0 ? (
+              <ul className="queue-list">
+                {queue.map((item) => (
+                  <li key={item.id}>
+                    <span className="queue-summary">{item.summary}</span>
+                    <span className="queue-when">{formatRelativeTime(item.queuedAt) || 'just now'}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="settings-help">Nothing waiting right now.</p>
+            )}
+            {queue.length > 0 && onClearQueue && (
+              <button type="button" className="btn btn-small" onClick={onClearQueue}>
+                Clear this list
+              </button>
+            )}
+          </section>
+        )}
+
         <section className="settings-section">
-          <h3>Send with my bot</h3>
+          <h3>{outboxReady ? 'Webhook (optional, instant)' : 'Send with my bot'}</h3>
           <p className="settings-help">
-            Paste the webhook URL and sender key from your Grok Bot routine. They stay in this browser only. The bot shows a draft card
-            you confirm before anything is sent.
+            {outboxReady
+              ? 'Only if you want replies to reach your bot right away instead of on its schedule: paste the webhook URL and sender key from a webhook routine. If the webhook fails, the outbox takes over.'
+              : 'Paste the webhook URL and sender key from your Grok Bot routine. They stay in this browser only. The bot shows a draft card you confirm before anything is sent.'}
           </p>
           <label className="settings-field">
             <span>Webhook URL</span>

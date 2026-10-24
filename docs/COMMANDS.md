@@ -137,7 +137,7 @@ The parser throws `CommandError` with a one-line, owner-readable reason: missing
 
 ## JSON webhook payloads
 
-With a webhook configured the viewer POSTs JSON instead (`src/lib/webhook.ts`, tests in `src/lib/webhook.test.ts`). Fields mirror the text headers one to one; `command` carries the equivalent text block so a bot can reuse its parser and the bot must stop if the two disagree.
+When the viewer can reach the bot by itself (the encrypted outbox, or a configured webhook) it sends JSON instead (`src/lib/webhook.ts`, tests in `src/lib/webhook.test.ts`). Through the outbox the JSON travels AES-256-GCM encrypted and the bot's `bot/outbox.mjs pull` prints it decrypted; over a webhook it is the POST body. Fields mirror the text headers one to one; `command` carries the equivalent text block so a bot can reuse its parser and the bot must stop if the two disagree.
 
 | Text header | JSON field | Notes |
 | --- | --- | --- |
@@ -154,7 +154,7 @@ With a webhook configured the viewer POSTs JSON instead (`src/lib/webhook.ts`, t
 | `inbox` (refresh) | `inbox` | |
 | | `action`, `threadId` (`inbox-action`) | reserved: `archive` \| `unarchive` \| `star` \| `unstar` \| `read` \| `unread`; not sent by the viewer yet |
 
-Authentication is one header, `<keyHeader>: <keyPrefix><key>` (default `Authorization: Bearer <key>`), configured in the viewer's Settings. See [RELAY.md](RELAY.md) for the direct-then-`/api/relay` delivery and the security rules the bot applies (`bot/SKILL.md`, Part F).
+Outbox items need no configuration: the bearer token is derived from the link key ([RELAY.md](RELAY.md) §6). Webhook authentication is one header, `<keyHeader>: <keyPrefix><key>` (default `Authorization: Bearer <key>`), configured in the viewer's Settings. See [RELAY.md](RELAY.md) for the delivery order (webhook → outbox → copy) and the security rules the bot applies (`bot/SKILL.md`, Parts F and G).
 
 ## Versioning
 

@@ -11,6 +11,7 @@ Node version instead (Node 20+ has WebCrypto built in).
     python3 encrypt_inbox.py encrypt --in export.json --key-file PATH --out-dir DIR
             [--seq-file PATH] [--no-compress] [--webhook-url URL]
             [--key-header NAME] [--key-prefix TEXT]
+            [--outbox] [--acked outbox/a.enc,outbox/b.enc | --acked acked.json]
     python3 encrypt_inbox.py link --base URL --key-file PATH
     python3 encrypt_inbox.py decrypt --in inbox.enc --key-file PATH
 """
@@ -124,6 +125,8 @@ def main() -> None:
     p.add_argument("--webhook-url")
     p.add_argument("--key-header")
     p.add_argument("--key-prefix")
+    p.add_argument("--outbox", action="store_true", help="mark /api/outbox as set up in inbox.meta.json")
+    p.add_argument("--acked", action="append", help="outbox ids the bot handled (comma list or a JSON array file); repeatable")
     add_key_args(p)
 
     p = sub.add_parser("link")
@@ -176,7 +179,21 @@ def main() -> None:
         out_dir = Path(args.out_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         (out_dir / "inbox.enc").write_text(json.dumps(envelope, separators=(",", ":")))
-        (out_dir / "inbox.meta.json").write_text(json.dumps({"seq": seq, "updatedAt": updated_at}))
+        meta: dict = {"seq": seq, "updatedAt": updated_at}
+        if args.outbox:
+            meta["outbox"] = True
+        acked: list[str] = []
+        for value in args.acked or []:
+            path = Path(value)
+            if path.exists():
+                loaded = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(loaded, list):
+                    acked.extend(x for x in loaded if isinstance(x, str))
+            else:
+                acked.extend(x.strip() for x in value.split(",") if x.strip())
+        if acked:
+            meta["outboxAcked"] = list(dict.fromkeys(acked))[-200:]
+        (out_dir / "inbox.meta.json").write_text(json.dumps(meta))
         sys.stderr.write(f"wrote {out_dir / 'inbox.enc'} (seq {seq}) and inbox.meta.json\n")
         return
 

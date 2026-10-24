@@ -41,15 +41,16 @@ jobs:
           VITE_BASE_PATH: /
         run: npm run build
 
-      - name: Add the relay function and a build-less vercel.json
+      - name: Add the api functions and a build-less vercel.json
         # The bot deploys these files inline with no build step, so the
-        # bundle carries the /api/relay function itself and a vercel.json
-        # without framework or build settings. package.json only sets
-        # "type": "module" so api/relay.js runs as ESM.
+        # bundle carries the /api/relay and /api/outbox functions themselves
+        # and a vercel.json without framework or build settings. package.json
+        # only sets "type": "module" so the functions run as ESM.
         run: |
           rm -f dist/.nojekyll
           mkdir -p dist/api
           cp api/relay.js dist/api/relay.js
+          cp api/outbox.js dist/api/outbox.js
           node -e '
             const fs = require("fs");
             const cfg = JSON.parse(fs.readFileSync("vercel.json", "utf8"));

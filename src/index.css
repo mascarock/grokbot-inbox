@@ -708,6 +708,26 @@ kbd {
 .live-status.is-stale .live-dot { background: var(--faint); box-shadow: none; }
 .icon-btn.is-spinning svg { animation: spin 1s linear infinite; }
 @keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* Encrypted outbox: drafts waiting for the bot */
+.queued-pill {
+  display: block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: border-color var(--t), color var(--t);
+}
+.queued-pill:hover { color: var(--ink); border-color: var(--ink-2); }
+.queue-list { list-style: none; display: flex; flex-direction: column; gap: 6px; margin: 0 0 10px; padding: 0; }
+.queue-list li { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.queue-summary { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queue-when { color: var(--faint); flex: none; font-size: 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .palette { width: min(600px, 100%); display: flex; flex-direction: column; max-height: min(520px, calc(100dvh - 48px)); }

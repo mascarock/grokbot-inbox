@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { readKeyFragment } from '../lib/crypto';
+import { readKeyFragment, type SnapshotMeta } from '../lib/crypto';
 import { INITIAL_FILTERS, type ThreadFilters } from '../lib/filterThreads';
 import { forgetSnapshotKey, recallSnapshotKey, rememberSnapshotKey } from '../lib/keyMemory';
+import { probeOutbox } from '../lib/outbox';
 import { readLinkPayload } from '../lib/linkCodec';
 import { forgetLinkPayload, recallLinkPayload, rememberLinkPayload } from '../lib/linkMemory';
 import {
@@ -29,6 +30,16 @@ export interface SnapshotStatus {
   stale: boolean;
 }
 
+/** What the viewer knows about `/api/outbox` on this origin. */
+export interface OutboxStatus {
+  /** The snapshot meta says the bot set it up, or a HEAD probe answered 204. */
+  available: boolean;
+  /** Item ids the bot reported handled in the latest `inbox.meta.json`. */
+  acked: string[];
+}
+
+const NO_OUTBOX: OutboxStatus = { available: false, acked: [] };
+
 export function useInboxSession() {
   const [inbox, setInbox] = useState<InboxExport | null>(null);
   const [origin, setOrigin] = useState<string | null>(null);
@@ -36,6 +47,9 @@ export function useInboxSession() {
   /** Bumps on every user-initiated open; background refreshes leave it alone. */
   const [sessionId, setSessionId] = useState(0);
   const [snapshot, setSnapshot] = useState<SnapshotStatus | null>(null);
+  /** The `#k=` key while a snapshot is open; the outbox encrypts with it. */
+  const [snapshotKey, setSnapshotKey] = useState<string | null>(null);
+  const [outbox, setOutbox] = useState<OutboxStatus>(NO_OUTBOX);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -47,6 +61,18 @@ export function useInboxSession() {
   const snapshotSource = useRef<ReturnType<typeof createSnapshotSource> | null>(null);
   const snapshotRef = useRef<SnapshotStatus | null>(null);
   snapshotRef.current = snapshot;
+  const outboxRef = useRef<OutboxStatus>(NO_OUTBOX);
+  outboxRef.current = outbox;
+
+  /** Folds the outbox fields of a fresh meta into state; probes once when the meta is silent. */
+  const noteOutbox = useCallback(async (meta: SnapshotMeta | null, probe: boolean) => {
+    const current = outboxRef.current;
+    let available = current.available || meta?.outbox === true;
+    if (!available && probe) available = await probeOutbox();
+    const acked = meta?.outboxAcked ?? current.acked;
+    if (available === current.available && acked === current.acked) return;
+    setOutbox({ available, acked });
+  }, []);
 
   const load = useCallback(async (source: InboxSource) => {
     setLoading(true);
@@ -57,6 +83,8 @@ export function useInboxSession() {
       if (source.kind !== 'snapshot') {
         snapshotSource.current = null;
         setSnapshot(null);
+        setSnapshotKey(null);
+        setOutbox(NO_OUTBOX);
       }
       setInbox(next);
       setOrigin(source.label);
@@ -84,6 +112,7 @@ export function useInboxSession() {
         forgetLinkPayload();
         const now = new Date().toISOString();
         setSnapshot({ seq: loaded.seq, updatedAt: loaded.updatedAt, checkedAt: now, refreshing: false, stale: false });
+        setSnapshotKey(keyB64);
         setInbox(loaded.inbox);
         setOrigin(source.label);
         setSourceKind(source.kind);
@@ -92,15 +121,20 @@ export function useInboxSession() {
         setSelectedId(loaded.inbox.threads[0]?.id ?? null);
         setRemoteImages({});
         setInlineOpen({});
+        setOutbox(NO_OUTBOX);
+        outboxRef.current = NO_OUTBOX;
+        void source.peek().then((meta) => noteOutbox(meta, true));
       } catch (err) {
         snapshotSource.current = null;
         setSnapshot(null);
+        setSnapshotKey(null);
+        setOutbox(NO_OUTBOX);
         setError(err instanceof Error && err.message ? err.message : 'Could not open the encrypted inbox.');
       } finally {
         setLoading(false);
       }
     },
-    [],
+    [noteOutbox],
   );
 
   /**
@@ -113,12 +147,12 @@ export function useInboxSession() {
     if (!source || !current || current.refreshing) return false;
     setSnapshot({ ...current, refreshing: true });
     try {
-      if (!force) {
-        const meta = await source.peek();
-        if (meta && !isNewerSnapshot(current, meta)) {
-          setSnapshot({ ...current, checkedAt: new Date().toISOString(), refreshing: false, stale: false });
-          return false;
-        }
+      // The sidecar is cheap and also carries the outbox flags.
+      const meta = await source.peek();
+      void noteOutbox(meta, force);
+      if (!force && meta && !isNewerSnapshot(current, meta)) {
+        setSnapshot({ ...current, checkedAt: new Date().toISOString(), refreshing: false, stale: false });
+        return false;
       }
       const loaded = await source.loadSnapshot();
       const checkedAt = new Date().toISOString();
@@ -133,7 +167,7 @@ export function useInboxSession() {
       setSnapshot((s) => (s ? { ...s, checkedAt: new Date().toISOString(), refreshing: false, stale: true } : s));
       return false;
     }
-  }, []);
+  }, [noteOutbox]);
 
   useEffect(() => {
     const keyFromHash = readKeyFragment(window.location.hash);
@@ -251,6 +285,8 @@ export function useInboxSession() {
     forgetSnapshotKey();
     snapshotSource.current = null;
     setSnapshot(null);
+    setSnapshotKey(null);
+    setOutbox(NO_OUTBOX);
     setInbox(null);
     setOrigin(null);
     setSourceKind(null);
@@ -274,6 +310,8 @@ export function useInboxSession() {
     sourceKind,
     sessionId,
     snapshot,
+    snapshotKey,
+    outbox,
     refreshSnapshot,
     error,
     loading,
