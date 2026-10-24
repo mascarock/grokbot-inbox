@@ -95,7 +95,7 @@ The bot republishes the whole site, so the snapshot is just another static file 
 1. Download the prebuilt viewer once per run (or reuse a cached copy whose `dist-manifest.json` commit has not changed): `https://github.com/mascarock/grokbot-inbox/releases/latest/download/dist.tar.gz`. The bundle already contains `api/relay.js`, a build-less `vercel.json`, and a `package.json` with `"type": "module"`.
 2. Export, encrypt, and drop `inbox.enc` + `inbox.meta.json` into the same directory.
 3. Once per project, `update_project` with `requestBody: { framework: null, buildCommand: "", installCommand: "", outputDirectory: null }`. Empty strings mean *no command*; `null` would mean *auto-detect*, and a project once set to Vite then runs `npm ci` and fails with `missing_lock_file`.
-4. `upload_file` for each file in the deploy set (base64 content, SHA-1, size; [bot/publish_files.mjs](../bot/publish_files.mjs) prints them and skips `.nojekyll` / `dist-manifest.json`), then `create_deployment` with `skipAutoDetectionConfirmation: "1"` top-level and `requestBody: { name, target: "production", files: [{ file, sha, size }, …], projectSettings: <same as step 3> }`. The connector cannot inline a dozen files in one call. Vercel serves the static files from the root and builds `api/relay.js` as a Node function.
+4. `upload_file` for each file in the deploy set (`xVercelDigest` = SHA-1 and `contentLength` top-level, `requestBody` = the base64 string; [bot/publish_files.mjs](../bot/publish_files.mjs) `file` prints exactly that and `list` skips `.nojekyll` / `dist-manifest.json`), then `create_deployment` with `skipAutoDetectionConfirmation: "1"` top-level and `requestBody: { name, target: "production", files: [{ file, sha, size }, …], projectSettings: <same as step 3> }`. The connector cannot inline a dozen files in one call. Vercel serves the static files from the root and builds `api/relay.js` as a Node function.
 5. Poll `get_deployment` until `READY`. The production alias does not change, so the owner's link keeps working; their open tab picks the new snapshot up within a minute.
 
 **Why is the snapshot a deployment and not a blob?** Publishing needs only the connector the bot already has: no store, no token, no environment variable, and a deployment per snapshot costs nothing on Hobby. The outbox (§6) does use a Blob store, because the browser has to *write* somewhere and the bot cannot deploy on the browser's behalf; the bot creates and connects that store once through the same connector.
@@ -193,7 +193,7 @@ If the real webhook host turns out to be elsewhere, add its suffix to the two al
 
 ## 6. The outbox: `/api/outbox`
 
-Replies without a webhook. The browser cannot deploy, so it needs somewhere to *write*: a Vercel Blob store on the owner's own project, created and connected once by the bot (SKILL.md Part G). [api/outbox.js](../api/outbox.js) is a dependency-free Node function in the release bundle, like the relay.
+Replies without a webhook. The browser cannot deploy, so it needs somewhere to *write*: a Vercel Blob store on the owner's own project, created once by the bot with `create_storage_stores_blob` (`access: "private"`, `projectId` set, which connects it and creates `BLOB_READ_WRITE_TOKEN`; SKILL.md Part G). [api/outbox.js](../api/outbox.js) is a dependency-free Node function in the release bundle, like the relay.
 
 ### Keys and token
 

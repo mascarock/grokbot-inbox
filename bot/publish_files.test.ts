@@ -30,14 +30,18 @@ describe('publish_files', () => {
     expect(entry).toEqual({ file: 'assets/index-abc.js', sha: createHash('sha1').update('console.log(1)').digest('hex'), size: 14 });
   });
 
-  it('CLI: manifest, list, and file with base64 content', () => {
+  it('CLI: manifest, list, and file as upload_file arguments', () => {
     const run = (args: string[]) => spawnSync('node', [script, ...args], { encoding: 'utf8' });
     const m = JSON.parse(run(['manifest', '--dir', dir]).stdout) as { file: string }[];
     expect(m.map((f) => f.file)).toEqual(listFiles(dir));
     expect(run(['list', '--dir', dir]).stdout.trim().split('\n')).toEqual(listFiles(dir));
-    const one = JSON.parse(run(['file', '--dir', dir, '--path', 'inbox.enc']).stdout) as { contentBase64: string; size: number };
-    expect(Buffer.from(one.contentBase64, 'base64').toString()).toBe('{"v":1}');
-    expect(one.size).toBe(7);
+    const one = JSON.parse(run(['file', '--dir', dir, '--path', 'inbox.enc']).stdout) as Record<string, unknown>;
+    expect(one).toEqual({
+      file: 'inbox.enc',
+      xVercelDigest: createHash('sha1').update('{"v":1}').digest('hex'),
+      contentLength: 7,
+      requestBody: Buffer.from('{"v":1}').toString('base64'),
+    });
     expect(run(['file', '--dir', dir]).status).toBe(1);
   });
 });
