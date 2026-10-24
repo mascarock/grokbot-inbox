@@ -28,7 +28,7 @@ Do this once, then remember the resulting base URL for later requests. If you al
 
 ### A1. Vercel connector
 
-You need the Vercel tools `list_projects`, `update_project`, `upload_file`, `create_deployment`, and `get_deployment`, plus `get_project`, `create_project_env`, `create_storage_stores_blob`, and the storage **connection** tool for the outbox (Part G). If they are not available, ask the owner to connect the Vercel connector (one click; they sign in to their free Vercel account, creating one if needed). Wait until the tools appear.
+You need the Vercel tools `list_projects`, `update_project`, `upload_file`, `create_deployment`, and `get_deployment`, plus `get_project`, `create_project_env`, `create_storage_stores_blob`, and `get_storage_stores_by_id` for the outbox (Part G). If they are not available, ask the owner to connect the Vercel connector (one click; they sign in to their free Vercel account, creating one if needed). Wait until the tools appear.
 
 **Scope.** A Hobby account's personal scope may itself carry a `team_…` id (Vercel shows it as the account's team id). You do not need it: **omit `teamId` in every call** and the connector uses the owner's default scope. Some read-only calls such as `list_deployment_events` may answer `403` on Hobby; that is not an error in your flow, use `get_deployment` instead.
 
@@ -44,7 +44,7 @@ Example: `Mascarock+roma@mail.grokbot.com` → handle `mascarock` → project `g
 
 Call `list_projects` with `search: "grokbot-inbox-"`. If a project named `grokbot-inbox-<handle>` (or any `grokbot-inbox-*` the owner created earlier) exists, reuse it: its production alias is the base URL. If you do not have the alias, fetch the project's latest production deployment with `get_deployment` and read `alias` (see A5).
 
-**If the project is linked to a Git repository** (`link` is set in the project, typically from an older viewer-only setup), every push to that repository would redeploy the viewer **without `inbox.enc`** and blank the owner's inbox. The connector has no tool to remove a Git link, so do one of these, in order of preference:
+**If the project is linked to a Git repository** (typically from an older viewer-only setup), every push to that repository would redeploy the viewer **without `inbox.enc`** and blank the owner's inbox. You cannot see the link from the connector: `get_project` output has no `link` field (nor the build settings, E4a). Tell a linked project apart by its deployments instead: `list_deployments` entries whose `meta` carries `githubCommitSha` / `githubRepo`, or `source: "git"`, came from pushes. When unsure, ask the owner whether the project shows a repository under *Settings → Git*. The connector has no tool to remove a Git link, so do one of these, in order of preference:
 
 1. Create a **fresh** project with a new name (for example `grokbot-inbox-<handle>-live`) and use that; tell the owner the old one can be deleted.
 2. Ask the owner to open the project in Vercel → **Settings → Git → Disconnect**, then continue with the same project.
@@ -66,7 +66,7 @@ The key file is `0600` on your machine. It is never printed, deployed, committed
 
 Follow E2–E4 with an **empty snapshot**: run `encrypt` on an export that has `"threads": []` so the site goes up even before the first real export, or go straight to Part B and publish the first real export. Poll `get_deployment` with the returned deployment id every 10–15 seconds until `readyState` (or `status`) is `READY`. If it reaches `ERROR` or `CANCELED`, read the error and tell the owner briefly.
 
-Take the base URL from the **`alias`** array: the short production domain, `grokbot-inbox-<handle>.vercel.app`. **Do not use the `url` field.** That is the per-deployment URL, which Vercel's deployment protection may block for visitors.
+Take the base URL from the **`alias`** array: the short production domain, `grokbot-inbox-<handle>.vercel.app`. **Do not use the `url` field.** That is the per-deployment URL, which Vercel's deployment protection blocks for visitors: new projects come with protection set to "all except custom domains" (`ssoProtection` in `get_project`). The production alias is not affected and stays public; leave the setting as it is (Gotchas).
 
 Project names are unique across all of Vercel. If `grokbot-inbox-<handle>` was already taken by someone else, Vercel gives the project a different domain; the `alias` entry tells you what it is. Use that. Do not guess the URL from the name.
 
@@ -303,6 +303,8 @@ update_project
 
 `framework: null` is correct here (no framework preset); `outputDirectory: null` means the root of the uploaded files. If the project does not exist yet, skip this step: the first `create_deployment` below creates it with the same `projectSettings`.
 
+You **cannot verify** these settings afterwards: the connector's `get_project` output does not include `buildCommand`, `installCommand`, or `framework` (nor `link`, see A3). Do not try to read them back; run `update_project` when in doubt, and **always include `projectSettings` in every `create_deployment`** (E4c) so a deployment carries the right settings even if the project's own were never changed.
+
 **E4b. Upload every file.** The connector substitutes file contents into only a few arguments per call, so a dozen files (one of them a 360 KB script) cannot be inlined in one `create_deployment`. Upload them one by one with `upload_file`, which takes the base64 content plus its SHA-1 and byte size. The helper prints exactly what each call needs:
 
 ```sh
@@ -311,7 +313,18 @@ node ~/.grokbot-inbox/publish_files.mjs list --dir /tmp/publish                 
 node ~/.grokbot-inbox/publish_files.mjs file --dir /tmp/publish --path assets/index-XXXX.js        # one upload_file's arguments
 ```
 
-`file` prints `{ "file", "sha", "size", "contentBase64" }`; pass `contentBase64` as the upload body with the `x-vercel-digest: <sha>` / `Content-Length: <size>` arguments the connector exposes (names may be `digest` and `size`). Do this for each path in `list`. The deploy set is: `index.html`, `assets/index-*.js`, `assets/index-*.css`, `favicon.svg`, `sample-inbox.json`, `api/relay.js`, `api/outbox.js`, `vercel.json`, `package.json`, `inbox.enc`, `inbox.meta.json`. **Not** `.nojekyll`, **not** `dist-manifest.json`. Uploads are content-addressed, so re-uploading an unchanged viewer file is a no-op on Vercel's side; only `inbox.enc` and `inbox.meta.json` change between publishes.
+`file` prints the `upload_file` arguments as they are, plus `file` for your own bookkeeping:
+
+```json
+upload_file
+{
+  "xVercelDigest": "<sha1 of the bytes, hex>",
+  "contentLength": 360456,
+  "requestBody": "<the base64 string itself, not an object>"
+}
+```
+
+`xVercelDigest` and `contentLength` are **top-level**; `requestBody` is the bare base64 string. The answer is `{}` when Vercel already had that file (content-addressed; unchanged viewer files are a no-op) and `{ "urls": [ … ] }` when it was new. Both mean success. Do this for each path in `list`. The deploy set is: `index.html`, `assets/index-*.js`, `assets/index-*.css`, `favicon.svg`, `sample-inbox.json`, `api/relay.js`, `api/outbox.js`, `vercel.json`, `package.json`, `inbox.enc`, `inbox.meta.json`. **Not** `.nojekyll`, **not** `dist-manifest.json`. Only `inbox.enc` and `inbox.meta.json` change between publishes.
 
 **E4c. Create the deployment.** `node ~/.grokbot-inbox/publish_files.mjs manifest --dir /tmp/publish` prints the `files` array. Then:
 
@@ -399,37 +412,33 @@ The sender key can leak from the owner's browser. That is why no payload can eve
 
 The viewer encrypts each reply with the **same key as the snapshot** and POSTs it to `/api/outbox` on the owner's project, which stores the ciphertext as a private blob in the owner's own Vercel Blob store. The function authenticates callers with a token **derived from the key** (`HMAC-SHA256(k, "grokbot-inbox/outbox/v1")`) and holds only its sha256, so Vercel never sees the key, the token, or any plaintext. You pull the items on a schedule, decrypt them locally, show a draft card per item, and acknowledge them. Format: `docs/RELAY.md` §6.
 
-Do G1–G4 once per owner, right after A6 (or on the first run after upgrading an older setup). You need the Vercel connector tools for storage (`create_storage_stores_blob`, the store **connection** tool, `get_project`, `create_project_env`) in addition to the ones in A1.
+Do G1–G4 once per owner, right after A6 (or on the first run after upgrading an older setup). You need the Vercel connector tools `create_storage_stores_blob`, `get_storage_stores_by_id`, `get_project`, and `create_project_env` in addition to the ones in A1.
 
-### G1. Create a Blob store (once per owner)
+### G1. Create a private Blob store **connected to the project** (once per owner)
+
+One call does both: it creates the store and connects it to the project, which is what creates the `BLOB_READ_WRITE_TOKEN` environment variable (all three environments). The function needs that variable and you never see its value. First get the project id (`prj_…`) with `get_project` on `grokbot-inbox-<handle>`, then:
 
 ```json
 create_storage_stores_blob
 {
-  "requestBody": { "name": "grokbot-inbox-<handle>-outbox" }
-}
-```
-
-The answer contains `store.id` (`store_…`). Keep it in `<handle>.publish.json` as `outbox.storeId`. If the call fails because the account already has as many stores as the plan allows, list the existing Blob stores (the connector's `list_storage_stores` / `get_storage_stores` tool, or ask the owner to read the name in Vercel → Storage) and reuse one: items live under their own `outbox/` prefix and the read-write token is created per project in G2, so sharing a store with another project is fine.
-
-### G2. Connect the store to the project
-
-This is what creates the `BLOB_READ_WRITE_TOKEN` environment variable; the function needs it and you never see its value. First get the project id (`prj_…`) with `get_project` on `grokbot-inbox-<handle>`, then:
-
-```json
-create_storage_store_connection        ← the connector tool for POST /v1/storage/stores/{storeId}/connections
-{
-  "storeId": "store_…",
   "requestBody": {
-    "projectId": "prj_…",
-    "envVarEnvironments": ["production", "preview", "development"]
+    "name": "grokbot-inbox-<handle>-outbox",
+    "access": "private",
+    "region": "iad1",
+    "projectId": "prj_…"
   }
 }
 ```
 
-The tool's name in your list may differ slightly (look for one that mentions `storage` and `connection`, with `storeId` as the path parameter). Check with `get_project_env` / `filter_project_envs`: a `BLOB_READ_WRITE_TOKEN` entry should now exist (you only need to see the key name, never request the decrypted value).
+- **`access` must be `"private"`.** The default is `"public"`, and `api/outbox.js` writes private blobs: on a public store every POST from the viewer fails with `502` (the viewer shows "The storage call failed") until you either recreate the store as private or set `OUTBOX_BLOB_ACCESS=public` on the project (Gotchas). Create it private and neither is needed.
+- `region` is any Vercel region (`iad1` is fine); `projectId` is what connects the store.
+- The answer contains `store.id` (`store_…`). **Save it** in `<handle>.publish.json` as `outbox.storeId`: there is no connector tool that lists stores (`list_storage_stores` / `get_storage_stores` do not exist), only `get_storage_stores_by_id`, which needs the id. On later runs, `get_storage_stores_by_id` with the saved id tells you the store is still there; if the id is lost, ask the owner to read it in Vercel → Storage, or create a new store and ignore the old one.
 
-**If no connection tool is available**, ask the owner for one click instead: *Vercel → Storage → `grokbot-inbox-<handle>-outbox` → Connect Project → choose `grokbot-inbox-<handle>`, all environments → Connect.* That does exactly the same thing. Then continue with G3.
+Check with `get_project_env` / `filter_project_envs`: a `BLOB_READ_WRITE_TOKEN` entry now exists (you only need to see the key name, never request the decrypted value).
+
+### G2. If the store exists but is not connected
+
+There is **no connector tool** for connecting an existing store to a project (`POST /v1/storage/stores/{id}/connections` is not exposed). If you created the store without `projectId`, or want to reuse one from another project, ask the owner for one click: *Vercel → Storage → the store → Connect Project → choose `grokbot-inbox-<handle>`, all environments → Connect.* That creates the same `BLOB_READ_WRITE_TOKEN`. Then confirm with `get_project_env` as above and continue with G3. If the account cannot have another store (plan limit), this is also how a store shared with another project gets connected; outbox items live under their own `outbox/` prefix.
 
 ### G3. Set the outbox token hash
 
@@ -458,13 +467,21 @@ create_project_env
 
 ### G4. Publish with the outbox switched on, then verify
 
-Environment variables reach a function only through a new deployment, so publish now (E1 debounce skipped, E2–E5) and from here on always pass `--outbox` to `encrypt` (E3). Then:
+Environment variables reach a function only through a new deployment, so publish now (E1 debounce skipped, E2–E5). Both variables are already on the project after G1 and G3, so **this publish and every later one** passes `--outbox` to `encrypt` (E3); publishes *before* G1–G3 are done must not. Then:
 
 ```sh
 node ~/.grokbot-inbox/outbox.mjs probe --url https://<alias>
 ```
 
-`ready` means `/api/outbox` answered `204`. `not configured (503)` means one of the two variables is missing on the deployment that is live: redo G2/G3 and publish again. `404` means the bundle predates the outbox: refresh `dist/` (E2) and publish again. Record `outbox.readyAt` in `<handle>.publish.json`.
+`ready` means `/api/outbox` answered `204`. `not configured (503)` means one of the two variables is missing on the deployment that is live: check `get_project_env` for `BLOB_READ_WRITE_TOKEN` (G1/G2) and `OUTBOX_TOKEN_SHA256` (G3), fix, and publish again. `404` means the bundle predates the outbox: refresh `dist/` (E2) and publish again. Until `probe` prints `ready`, the viewer's "Send with my bot" shows an error and offers the copy fallback, so fix it in the same run. Record `outbox.readyAt` in `<handle>.publish.json`.
+
+Also run a first `pull`; it should print `[]`:
+
+```sh
+node ~/.grokbot-inbox/outbox.mjs pull --url https://<alias> --key-file ~/.grokbot-inbox/<handle>.key
+```
+
+`pull` only reads. The write path is exercised the first time the owner presses "Send with my bot"; if they report "The storage call failed", the store is public (G1): recreate it with `"access": "private"`, or set `OUTBOX_BLOB_ACCESS=public` on the project (Gotchas), and publish.
 
 Tell the owner one line: "Replies you write in the viewer now reach me by themselves. I check every 15 minutes and show you each one as a draft to confirm before anything is sent." Nothing for them to paste.
 
@@ -492,17 +509,20 @@ Posting to the outbox needs the derived token, which anyone with the link (`#k=`
 - **No `teamId`.** Hobby accounts may show a `team_…` id for the personal scope; omitting `teamId` selects it. `list_deployment_events` may 403 on Hobby; use `get_deployment`.
 - **`requestBody`.** Body fields (`name`, `target`, `files`, `projectSettings`, project settings for `update_project`) go inside `requestBody`; query parameters such as `skipAutoDetectionConfirmation` are top-level.
 - **`null` is auto-detect.** Use `""` for `buildCommand` and `installCommand` (E4a) or a project once set to Vite will run `npm ci` and fail with `missing_lock_file`.
-- **Upload, then reference.** `upload_file` per file, then `files: [{ file, sha, size }]`. Inlining the bundle in one call does not work with the connector.
+- **Upload, then reference.** `upload_file` per file (`xVercelDigest` and `contentLength` top-level, `requestBody` = the base64 string; `{}` back means Vercel had it already), then `files: [{ file, sha, size }]` in `create_deployment`. Inlining the bundle in one call does not work with the connector.
+- **`get_project` tells you little.** No `buildCommand`, `installCommand`, `framework`, or `link` in its output, so neither E4a nor a Git link can be verified from it. Always pass `projectSettings` in `create_deployment`; for the Git question, ask the owner or look for Git-triggered deployments in `list_deployments`.
+- **SSO / deployment protection is fine.** `get_project` may show `ssoProtection` set to "all except custom domains" (Vercel's default on new projects). The production alias `https://grokbot-inbox-<handle>.vercel.app/` still answers publicly (that is what `probe` and the owner's link use), so leave it alone. It is one more reason to never hand out the per-deployment `url` (A5). If the alias ever asks for a Vercel login, ask the owner to set *Settings → Deployment Protection* to "Only Preview Deployments".
 - **Alias, not `url`.** The `url` field is the deployment URL and may sit behind deployment protection. The production alias in `alias` is the public one.
 - **Names are global.** `grokbot-inbox-<handle>` may already exist in another account. Read the alias Vercel actually assigned instead of assuming it.
 - **Do not git-link the project.** A repository push would deploy a viewer without `inbox.enc`. You refresh viewer files on every publish from the release bundle instead. For a project that is already linked, see A3.
 - **Fewer than 25 means done.** `SearchEmailThreads` has no pagination; walk time windows until one returns fewer than 25 threads (B2).
 - **`relay.webhookUrl` is optional.** You only know it if the owner pasted it to you; the viewer works without it. So is the whole webhook (Part F): the outbox (Part G) delivers replies by itself.
-- **Env vars need a deployment.** `BLOB_READ_WRITE_TOKEN` (G2) and `OUTBOX_TOKEN_SHA256` (G3) reach `/api/outbox` only through the next `create_deployment`. `probe` says `not configured (503)` until you publish.
-- **Private blobs.** `api/outbox.js` stores items with `access: private`. If the store is an old one that refuses private writes (POST answers `502` and `pull` shows nothing although the viewer said "Queued"), set the project env var `OUTBOX_BLOB_ACCESS=public` and publish; the items are ciphertext under an unguessable name either way.
+- **Env vars need a deployment.** `BLOB_READ_WRITE_TOKEN` (G1) and `OUTBOX_TOKEN_SHA256` (G3) reach `/api/outbox` only through the next `create_deployment`. `probe` says `not configured (503)` until you publish.
+- **Create the store private and connected.** `create_storage_stores_blob` takes `access` (defaults to `"public"`; pass `"private"`) and `projectId` (connects the store and creates the token variable). There is no tool to connect a store afterwards and none to list stores: save `store.id` in `<handle>.publish.json`.
+- **Private blobs.** `api/outbox.js` writes items with `access: private`. On a public store the viewer's POST answers `502` ("The storage call failed"). Fix: recreate the store private (G1), or set the project env var `OUTBOX_BLOB_ACCESS=public` and publish; the items are ciphertext under an unguessable name either way.
 - **Empty outbox means silence.** The outbox routine must not post "nothing to do" every 15 minutes. `[]` → stop.
 - **Ack everything you pulled**, including malformed items, or the same card comes back next run.
-- **`--outbox` only after G4.** The viewer shows "Queued for your bot" as soon as the meta says `outbox: true`; do not say so before `probe` printed `ready`.
+- **`--outbox` from the G4 publish on, never before G1–G3.** The viewer offers "Send with my bot → Queued" as soon as the meta says `outbox: true`, so the deployment that carries that meta must already have both env vars. Publishes made before the store and the token hash exist go without `--outbox`.
 - **100 deployments per day** is the Vercel Hobby ceiling for the whole account. Debounce (5 min) and budget (80) are not optional.
 - **The alias never changes; the snapshot does.** The owner's link, the key, and the webhook URL stay the same across publishes. Only `seq` grows.
 - **The key file is the owner's inbox.** Lose it and you must `keygen --force`, publish, and send a new link; every device re-opens the link once. Leak it and rotate it the same way.

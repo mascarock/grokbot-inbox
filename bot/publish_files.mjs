@@ -10,7 +10,10 @@
  *   node publish_files.mjs manifest --dir /tmp/publish
  *       → JSON array for create_deployment's "files": [{ file, sha, size }]
  *   node publish_files.mjs file --dir /tmp/publish --path assets/index-XXXX.js
- *       → JSON for one upload_file call: { file, sha, size, contentBase64 }
+ *       → the arguments of one upload_file call, as the connector takes them:
+ *         { file, xVercelDigest, contentLength, requestBody }
+ *         (xVercelDigest = sha1 hex and contentLength = bytes are top-level,
+ *         requestBody is the bare base64 string; `file` is for your notes)
  *   node publish_files.mjs list --dir /tmp/publish
  *       → one relative path per line (the deploy set, after skips)
  *
@@ -70,6 +73,11 @@ export function describe(dir, rel) {
   };
 }
 
+/** The connector's `upload_file` arguments for one described file. */
+export function uploadArgs({ file, sha, size, bytes }) {
+  return { file, xVercelDigest: sha, contentLength: size, requestBody: bytes.toString('base64') };
+}
+
 export function manifest(dir) {
   return listFiles(dir).map((rel) => {
     const { file, sha, size } = describe(dir, rel);
@@ -96,7 +104,7 @@ function main() {
       process.exit(1);
     }
     const { file, sha, size, bytes } = describe(dir, args.path);
-    process.stdout.write(`${JSON.stringify({ file, sha, size, contentBase64: bytes.toString('base64') })}\n`);
+    process.stdout.write(`${JSON.stringify(uploadArgs({ file, sha, size, bytes }))}\n`);
     return;
   }
   console.error('usage: publish_files.mjs manifest|list|file [--dir DIR] [--path FILE]');
