@@ -4,7 +4,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "cleanUrls": true,
-  "functions": { "api/relay.js": { "maxDuration": 20 } },
+  "functions": { "api/relay.js": { "maxDuration": 20 }, "api/outbox.js": { "maxDuration": 20 } },
   "redirects": [{ "source": "/demo", "destination": "/?demo", "permanent": false }],
   "headers": [
     {
