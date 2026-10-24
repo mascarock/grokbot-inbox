@@ -32,6 +32,7 @@ export function Sidebar({
   exportedLabel,
   lite,
   live,
+  queued = 0,
   onFilters,
   onCompose,
   onRefresh,
@@ -49,6 +50,8 @@ export function Sidebar({
   lite: boolean;
   /** Set when the inbox comes from an encrypted snapshot that the viewer polls. */
   live: { label: string; refreshing: boolean; stale: boolean } | null;
+  /** Drafts left in the encrypted outbox that the bot has not picked up yet. */
+  queued?: number;
   onFilters: (filters: ThreadFilters) => void;
   onCompose: () => void;
   onRefresh: () => void;
@@ -141,6 +144,16 @@ export function Sidebar({
             exportedLabel && <span>Exported {exportedLabel}</span>
           )}
           {lite && <span title="Quoted replies and inline images were left out to keep the link short."> · lite</span>}
+          {queued > 0 && (
+            <button
+              type="button"
+              className="queued-pill"
+              onClick={onSettings}
+              title="Drafts waiting in the encrypted outbox. Your bot picks them up within ~15 min and shows you a draft card."
+            >
+              {queued} waiting for your bot
+            </button>
+          )}
         </p>
         <div className="side-tools">
           <button
@@ -152,7 +165,7 @@ export function Sidebar({
           >
             <RefreshIcon />
           </button>
-          <button type="button" className="icon-btn" onClick={onSettings} aria-label="Settings" title="Settings (webhook, this device)">
+          <button type="button" className="icon-btn" onClick={onSettings} aria-label="Settings" title="Settings (sending, this device)">
             <SettingsIcon />
           </button>
           <button type="button" className="icon-btn" onClick={onToggleTheme} aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} title="Theme">

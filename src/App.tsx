@@ -41,6 +41,7 @@ import { copyText } from './lib/clipboard';
 import { formatRefreshCommand, type ComposeKind, type SendCommand } from './lib/command';
 import { draftKey, startDraft, type Draft } from './lib/compose';
 import { formatExportTime, formatRelativeTime } from './lib/dates';
+import { chooseDelivery, deliverPayload, enqueue, loadQueue, reconcileQueue, saveQueue, type QueuedItem } from './lib/outbox';
 import {
   applyPrefill,
   buildRefreshPayload,
@@ -69,6 +70,8 @@ export function App() {
     sourceKind,
     sessionId,
     snapshot,
+    snapshotKey,
+    outbox,
     refreshSnapshot,
     error,
     loading,
@@ -96,8 +99,12 @@ export function App() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [pillHidden, setPillHidden] = useState(false);
   const [webhook, setWebhook] = useState<WebhookSettings>(() => loadWebhookSettings());
+  const [queue, setQueue] = useState<QueuedItem[]>([]);
   const [clock, setClock] = useState(() => Date.now());
   const webhookReady = isConfigured(webhook);
+  const outboxReady = outbox.available && Boolean(snapshotKey);
+  const delivery = chooseDelivery({ webhook, outboxKey: snapshotKey, outboxReady: outbox.available });
+  const botReady = delivery !== 'copy';
 
   // The snapshot may carry the bot's webhook URL so the user only pastes the key.
   useEffect(() => {
@@ -117,6 +124,27 @@ export function App() {
   }, [snapshot]);
 
   const inboxAddress = inbox?.inbox ?? '';
+
+  // Items this device left in the outbox, until a snapshot says the bot took them.
+  useEffect(() => {
+    setQueue(inboxAddress ? loadQueue(inboxAddress) : []);
+  }, [inboxAddress]);
+
+  useEffect(() => {
+    if (!inboxAddress || outbox.acked.length === 0) return;
+    const { queue: next, handled } = reconcileQueue(queue, outbox.acked);
+    if (handled.length === 0) return;
+    saveQueue(inboxAddress, next);
+    setQueue(next);
+    setNotice({
+      message:
+        handled.length === 1
+          ? `Your bot picked up "${handled[0].summary}". Confirm the draft in your Grok Bot chat.`
+          : `Your bot picked up ${handled.length} queued drafts. Confirm them in your Grok Bot chat.`,
+      tone: 'info',
+    });
+  }, [inboxAddress, outbox.acked, queue]);
+
   const visible = useMemo(() => {
     if (!inbox) return [];
     const matched = filterThreads(inbox.threads, filters, local.state, inboxAddress);
@@ -268,9 +296,21 @@ export function App() {
     await copyRefresh();
   }, [inbox, snapshot, refreshSnapshot, webhookReady, webhook, toast, copyRefresh]);
 
+  /** Webhook when configured (instant), else the encrypted outbox; the compose window copies the block when neither works. */
   const deliverSend = useCallback(
-    (command: Omit<SendCommand, 'version'>, commandText: string) => deliver(buildSendPayload(command, commandText), webhook),
-    [webhook],
+    async (command: Omit<SendCommand, 'version'>, commandText: string) => {
+      const payload = buildSendPayload(command, commandText);
+      const outcome = await deliverPayload(payload, { webhook, outboxKey: snapshotKey, outboxReady: outbox.available });
+      if (outcome.ok && outcome.via === 'outbox' && outcome.id && inboxAddress) {
+        setQueue((current) => {
+          const next = enqueue(current, payload, outcome.id!);
+          saveQueue(inboxAddress, next);
+          return next;
+        });
+      }
+      return outcome;
+    },
+    [webhook, snapshotKey, outbox.available, inboxAddress],
   );
 
   const saveWebhook = useCallback(
@@ -286,6 +326,11 @@ export function App() {
     clearWebhookSettings();
     setWebhook(loadWebhookSettings());
   }, []);
+
+  const clearQueue = useCallback(() => {
+    if (inboxAddress) saveQueue(inboxAddress, []);
+    setQueue([]);
+  }, [inboxAddress]);
 
   const snapshotLabel = useMemo(() => {
     if (!snapshot) return '';
@@ -486,9 +531,9 @@ export function App() {
       {
         id: 'settings',
         label: 'Settings',
-        hint: webhookReady ? 'webhook connected' : 'connect your bot\'s webhook',
+        hint: webhookReady ? 'webhook connected' : outboxReady ? (queue.length ? `outbox ready · ${queue.length} waiting` : 'outbox ready') : 'connect your bot\'s webhook',
         group: 'Settings',
-        keywords: 'webhook key relay device',
+        keywords: 'webhook key relay device outbox queued waiting',
         icon: <SettingsIcon />,
         run: () => setShowSettings(true),
       },
@@ -515,6 +560,8 @@ export function App() {
     snapshot,
     snapshotLabel,
     webhookReady,
+    outboxReady,
+    queue.length,
     inboxAddress,
     openCompose,
     archiveSelected,
@@ -579,6 +626,7 @@ export function App() {
             exportedLabel={formatExportTime(inbox.exportedAt)}
             lite={inbox.mode === 'lite'}
             live={snapshot ? { label: snapshotLabel, refreshing: snapshot.refreshing, stale: snapshot.stale } : null}
+            queued={queue.length}
             onFilters={setFilters}
             onCompose={() => openCompose('new')}
             onRefresh={() => void refresh()}
@@ -690,8 +738,8 @@ export function App() {
           }}
           onClose={() => closeCompose(compose)}
           onToast={toast}
-          webhookReady={webhookReady}
-          onDeliver={deliverSend}
+          delivery={delivery}
+          onDeliver={botReady ? deliverSend : undefined}
           onOpenSettings={() => setShowSettings(true)}
         />
       )}
@@ -708,9 +756,12 @@ export function App() {
         <SettingsModal
           settings={webhook}
           snapshot={snapshot}
+          outboxReady={outboxReady}
+          queue={queue}
           prefilledUrl={inbox?.relay?.webhookUrl}
           onSave={saveWebhook}
           onClear={clearWebhook}
+          onClearQueue={clearQueue}
           onForgetDevice={sourceKind === 'snapshot' ? forget : undefined}
           onClose={() => setShowSettings(false)}
         />
