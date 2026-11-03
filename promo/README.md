@@ -1,6 +1,8 @@
 # Promo
 
-30-second spot for Grok Bot Inbox. Landscape is 1920×1080, the vertical cut is 1080×1920, both H.264 at 30 fps. The inbox footage is the real app on the fictional `/?demo` sample. Title cards are drawn in `stage/`.
+30-second spot for Grok Bot Inbox. Landscape is 1920×1080, the vertical cut is 1080×1920. Both are H.264 at 60 fps.
+
+The inbox footage is the real app on the fictional `/?demo` sample. `record` does not film wall-clock video. It steps the UI (thread, command palette, privacy blur, reply) and saves still plates. `render` composites those plates at 60 fps: eased camera moves, a cursor on a bezier path, caption reveals, and a short synthesized tick/whoosh bed. No licensed music.
 
 ## Re-render
 
@@ -27,4 +29,4 @@ npm run render
 - `out/grokbot-inbox-promo-vertical.mp4`
 - `out/poster.png`
 
-`node render.mjs --only=landscape` skips the vertical cut. Recordings land in `capture/` (gitignored). Do not commit the mp4s.
+`node render.mjs --only=landscape` skips the vertical cut. Plates land in `capture/` (gitignored). Do not commit the mp4s.
