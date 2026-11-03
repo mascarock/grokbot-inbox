@@ -1,0 +1,14 @@
+{
+  "name": "grokbot-inbox-promo",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "record": "node record.mjs",
+    "render": "node render.mjs",
+    "render:vertical": "node render.mjs --vertical"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.1"
+  }
+}
